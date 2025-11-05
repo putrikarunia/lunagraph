@@ -5,13 +5,12 @@ import { DraggableElement } from "../DraggableElement";
 export function renderElement(
   element: FEElement,
   options: {
-    isRoot?: boolean;
     isDragPreview?: boolean;
     onSelectElement?: (id: string) => void;
     onHoverElement?: (id: string | null) => void;
   } = {}
 ): React.ReactNode {
-  const { isRoot = false, isDragPreview = false } = options;
+  const { isDragPreview = false } = options;
 
   const commonProps = {
     "data-element-id": element.id,
@@ -45,7 +44,7 @@ export function renderElement(
         ...commonProps,
       },
       element.children?.map((child) =>
-        renderElement(child, { ...options, isRoot: false })
+        renderElement(child, { ...options })
       )
     );
   }
@@ -58,22 +57,6 @@ export function renderElement(
       {content}
     </DraggableElement>
   );
-
-  // If root element, wrap with absolute positioning
-  if (isRoot && element.canvasPosition) {
-    return (
-      <div
-        key={element.id}
-        className="absolute"
-        style={{
-          top: element.canvasPosition.y || 20,
-          left: element.canvasPosition.x || 20,
-        }}
-      >
-        {draggableContent}
-      </div>
-    );
-  }
 
   return draggableContent;
 }
