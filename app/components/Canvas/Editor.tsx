@@ -3,16 +3,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs"
 
 
 import { useState } from "react"
+import { DndContext, DragOverlay } from "@dnd-kit/core"
 import { FEElement } from "./types"
 import CanvasLayout from "./CanvasLayout"
 import { Canvas } from "./Canvas"
 import { InsertPanel } from "./InsertPanel"
 import { LayersPanel } from "./LayersPanel"
+import { useDndCanvas } from "./hooks/useDndCanvas"
+import { renderElement } from "./utils/renderElement"
 
 export const Editor = () => {
   const [elements, setElements] = useState<FEElement[]>([])
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
   const [hoverElementId, setHoverElementId] = useState<string | null>(null)
+
+  const {
+    activeElement,
+    initialRect,
+    isDragging,
+    handleDragStart,
+    handleDragEnd,
+    handleDragCancel,
+  } = useDndCanvas({
+    elements,
+    setElements,
+    onSelectElement: setSelectedElementId,
+  });
 
   const onAddElement = (element: FEElement) => {
     setElements(prev => [...prev, element])
@@ -56,6 +72,8 @@ export const Editor = () => {
 
     setElements(el => updateElement(el));
   }
+
+
 
   const onDragElement = (
     draggedId: string,
@@ -116,34 +134,49 @@ export const Editor = () => {
     const finalElements = insertElement(newElements);
     setElements(finalElements);
   }
-  return (<CanvasLayout
-    leftChildren={
-      <Tabs defaultValue="layers" className="w-full">
-        <TabsList>
-          <TabsTrigger value="layers">Layers</TabsTrigger>
-          <TabsTrigger value="insert">Insert</TabsTrigger>
-        </TabsList>
-        <TabsContent value="layers">
-          <LayersPanel
+  return (
+    <CanvasLayout
+      leftChildren={
+        <Tabs defaultValue="layers" className="w-full">
+          <TabsList>
+            <TabsTrigger value="layers">Layers</TabsTrigger>
+            <TabsTrigger value="insert">Insert</TabsTrigger>
+          </TabsList>
+          <TabsContent value="layers">
+            <LayersPanel
+            elements={elements}
+            selectedElementId={selectedElementId}
+            onSelectElement={setSelectedElementId}
+            onDragElement={onDragElement}
+          /></TabsContent>
+          <TabsContent value="insert">
+            <InsertPanel onAddElement={onAddElement} />
+          </TabsContent>
+        </Tabs>
+      }
+    >
+      <DndContext
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <Canvas
           elements={elements}
           selectedElementId={selectedElementId}
-          onSelectElement={setSelectedElementId}
-          onDragElement={onDragElement}
-        /></TabsContent>
-        <TabsContent value="insert">
-          <InsertPanel onAddElement={onAddElement} />
-        </TabsContent>
-      </Tabs>
-    }
-  >
-    <Canvas
-      elements={elements}
-      selectedElementId={selectedElementId}
-      hoverElementId={hoverElementId}
-      onSelectElement={(id: string | null) => setSelectedElementId(id)}
-      onHoverElement={(id: string | null) => setHoverElementId(id)}
-      onMoveElement={onMoveElement}
-      onResizeElement={onResizeElement}
-    />
-  </CanvasLayout>)
+          hoverElementId={hoverElementId}
+          onSelectElement={(id: string | null) => setSelectedElementId(id)}
+          onHoverElement={(id: string | null) => setHoverElementId(id)}
+          onMoveElement={onMoveElement}
+          onResizeElement={onResizeElement}
+          isDragging={isDragging}
+        />
+        <DragOverlay dropAnimation={null}>
+          {activeElement && renderElement(activeElement, {
+            isRoot: false,
+            isDragPreview: true,
+          })}
+        </DragOverlay>
+      </DndContext>
+    </CanvasLayout>
+  )
 }

@@ -1,8 +1,8 @@
-import   { createElement, Fragment,   useRef, useState } from "react";
-import { DraggingState, FEElement, ResizingState } from "./types";
-import { useDragging } from "./hooks/useDragging";
+import { useRef, useState } from "react";
+import { FEElement, ResizingState } from "./types";
 import { useHoverAndSelectionOverlay } from "./hooks/useHoverAndSelectionOverlay";
 import { useResizing } from "./hooks/useResizing";
+import { renderElement } from "./utils/renderElement";
 
 export function Canvas({
   elements,
@@ -11,7 +11,8 @@ export function Canvas({
   onSelectElement,
   onHoverElement,
   onMoveElement,
-  onResizeElement
+  onResizeElement,
+  isDragging = false,
 }: {
   elements: FEElement[];
   selectedElementId: string | null;
@@ -24,10 +25,10 @@ export function Canvas({
     size: { width: number; height: number },
     position?: { x: number; y: number }
   ) => void;
+  isDragging?: boolean;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [resizing, setResizing] = useState<ResizingState | null>(null);
 
   const {handleResizeStart} = useResizing({
@@ -44,48 +45,6 @@ export function Canvas({
     handleResizeStart
   })
 
-  const {handleDragStart} = useDragging({
-    dragging,
-    setDragging,
-    onMoveElement
-  })
-
-  const renderElement = (element: FEElement): React.ReactNode => {
-    const commonProps = {
-      "data-element-id": element.id,
-      onClick: (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onSelectElement(element.id);
-      },
-      onMouseOver: (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onHoverElement(element.id);
-      },
-      onMouseLeave: (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onHoverElement(null);
-      },
-      onMouseDown: (e: React.MouseEvent) => handleDragStart(e, element),
-      // onDoubleClick: (e: React.MouseEvent) => handleDoubleClick(e, element),
-      // onDrop: (e: React.DragEvent) => handleDrop(e, element.id),
-      // onDragOver: handleDragOver,
-    };
-
-    let content = <div>Default Content</div>;
-
-    if (element.type === "html") {
-      content = createElement(
-        element.tag ?? 'div',
-        {
-          style: element.styles,
-          ...commonProps,
-        },
-        element.children?.map(renderElement)
-      );
-    }
-
-    return <Fragment key={element.id}>{content}</Fragment>;
-  };
   return (
     <div
       className="w-full h-full relative"
@@ -93,21 +52,17 @@ export function Canvas({
       onClick={() => onSelectElement(null)}
       onMouseOver={() => onHoverElement(null)}
     >
-      {elements.map((el) => (
-        // Root elements have specific canvas position
-        <div
-          key={el.id}
-          className="absolute" style={{
-          top: el.canvasPosition?.y || 20,
-          left: el.canvasPosition?.x || 20,
-        }}>
-          {renderElement(el)}
-        </div>
-      ))}
+      {elements.map((el) =>
+        renderElement(el, {
+          isRoot: true,
+          onSelectElement,
+          onHoverElement,
+        })
+      )}
 
-      {/* Selection overlay */}
-      {renderSelectionOverlay()}
-      {renderHoverOverlay()}
+      {/* Selection overlay - hide while dragging */}
+      {!isDragging && renderSelectionOverlay()}
+      {!isDragging && renderHoverOverlay()}
     </div>
   );
 }
