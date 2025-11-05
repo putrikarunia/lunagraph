@@ -17,63 +17,6 @@ export const Editor = () => {
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
   const [hoverElementId, setHoverElementId] = useState<string | null>(null)
 
-  const {
-    activeElement,
-    initialRect,
-    isDragging,
-    handleDragStart,
-    handleDragEnd,
-    handleDragCancel,
-  } = useDndCanvas({
-    elements,
-    setElements,
-    onSelectElement: setSelectedElementId,
-  });
-
-  const onAddElement = (element: FEElement) => {
-    setElements(prev => [...prev, element])
-  }
-
-  const onMoveElement = (elementId: string, pos: {x: number, y: number}) => {
-    const updateElement = (elements: FEElement[]): FEElement[] => {
-      return elements.map((el) => {
-        if (el.id === elementId) {
-          return { ...el, canvasPosition: {x: pos.x, y: pos.y} };
-        }
-        return { ...el, children: updateElement(el.children) };
-      });
-    };
-
-    setElements(el => updateElement(el));
-  }
-
-
-  const onResizeElement = (
-    elementId: string,
-    size: { width: number; height: number },
-    pos?: { x: number; y: number }
-  ) => {
-    const updateElement = (elements: FEElement[]): FEElement[] => {
-      return elements.map((el) => {
-        if (el.id === elementId) {
-          return {
-            ...el,
-            styles: {
-              ...(el.styles || {}),
-              width: size.width,
-              height: size.height
-            },
-            canvasPosition: pos ? {x: pos?.x, y: pos?.y} : undefined
-          };
-        }
-        return { ...el, children: updateElement(el.children) };
-      });
-    };
-
-    setElements(el => updateElement(el));
-  }
-
-
 
   const onDragElement = (
     draggedId: string,
@@ -134,6 +77,53 @@ export const Editor = () => {
     const finalElements = insertElement(newElements);
     setElements(finalElements);
   }
+
+  const {
+    activeElement,
+    overId,
+    isDragging,
+    handleDragStart,
+    handleDragMove,
+    handleDragEnd,
+    handleDragCancel,
+  } = useDndCanvas({
+    elements,
+    setElements,
+    onSelectElement: setSelectedElementId,
+    onDragElement,
+  });
+
+  const onAddElement = (element: FEElement) => {
+    setElements(prev => [...prev, element])
+  }
+
+  const onResizeElement = (
+    elementId: string,
+    size: { width: number; height: number },
+    pos?: { x: number; y: number }
+  ) => {
+    const updateElement = (elements: FEElement[]): FEElement[] => {
+      return elements.map((el) => {
+        if (el.id === elementId) {
+          return {
+            ...el,
+            styles: {
+              ...(el.styles || {}),
+              width: size.width,
+              height: size.height
+            },
+            canvasPosition: pos ? {x: pos?.x, y: pos?.y} : undefined
+          };
+        }
+        return { ...el, children: updateElement(el.children) };
+      });
+    };
+
+    setElements(el => updateElement(el));
+  }
+
+
+
   return (
     <CanvasLayout
       leftChildren={
@@ -157,6 +147,7 @@ export const Editor = () => {
     >
       <DndContext
         onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
@@ -166,13 +157,12 @@ export const Editor = () => {
           hoverElementId={hoverElementId}
           onSelectElement={(id: string | null) => setSelectedElementId(id)}
           onHoverElement={(id: string | null) => setHoverElementId(id)}
-          onMoveElement={onMoveElement}
           onResizeElement={onResizeElement}
           isDragging={isDragging}
+          potentialParentId={overId}
         />
         <DragOverlay dropAnimation={null}>
           {activeElement && renderElement(activeElement, {
-            isRoot: false,
             isDragPreview: true,
           })}
         </DragOverlay>
