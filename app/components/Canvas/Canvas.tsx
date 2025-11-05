@@ -58,8 +58,6 @@ export function Canvas({
       onClick={() => onSelectElement(null)}
       onMouseOver={() => onHoverElement(null)}
     >
-      potentialParentId:{potentialParentId}
-      <pre>{JSON.stringify(elements, null, 2)}</pre>
       {elements.map((el) =>
         <div
           key={el.id}
