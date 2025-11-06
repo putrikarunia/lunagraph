@@ -47,6 +47,17 @@ export function renderElement(
         renderElement(child, { ...options })
       )
     );
+  } else if (element.type === "text") {
+    // Text nodes are not draggable - just render directly
+    return createElement(
+      'span',
+      {
+        key: element.id,
+        style: element.styles,
+        ...commonProps,
+      },
+      element.text
+    );
   }
 
   // Wrap with DraggableElement (unless it's a drag preview)

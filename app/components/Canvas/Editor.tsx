@@ -11,6 +11,7 @@ import { InsertPanel } from "./InsertPanel"
 import { LayersPanel } from "./LayersPanel"
 import { useDndCanvas } from "./hooks/useDndCanvas"
 import { renderElement } from "./utils/renderElement"
+import { Text } from "../ui/Text"
 
 export const Editor = () => {
   const [elements, setElements] = useState<FEElement[]>([])
@@ -33,10 +34,14 @@ export const Editor = () => {
           draggedElement = el;
           // Don't include this element
         } else {
-          result.push({
-            ...el,
-            children: findAndRemove(el.children),
-          });
+          if (el.type !== 'text') {
+            result.push({
+              ...el,
+              children: el.children ? findAndRemove(el.children) : [],
+            });
+          } else {
+            result.push(el);
+          }
         }
       }
       return result;
@@ -57,16 +62,24 @@ export const Editor = () => {
             result.push(el);
             result.push(draggedElement);
           } else if (position === "inside" && draggedElement) {
-            result.push({
-              ...el,
-              children: [...el.children, draggedElement],
-            });
+            if (el.type !== 'text') {
+              result.push({
+                ...el,
+                children: [...(el.children || []), draggedElement],
+              });
+            } else {
+              result.push(el);
+            }
           }
         } else {
-          result.push({
-            ...el,
-            children: insertElement(el.children),
-          });
+          if (el.type !== 'text') {
+            result.push({
+              ...el,
+              children: el.children ? insertElement(el.children) : [],
+            });
+          } else {
+            result.push(el);
+          }
         }
       }
 
@@ -115,7 +128,13 @@ export const Editor = () => {
             canvasPosition: pos ? {x: pos?.x, y: pos?.y} : undefined
           };
         }
-        return { ...el, children: updateElement(el.children) };
+        if (el.type !== 'text') {
+          return {
+            ...el,
+            children: el.children ? updateElement(el.children) : []
+          };
+        }
+        return el;
       });
     };
 
@@ -127,22 +146,27 @@ export const Editor = () => {
   return (
     <CanvasLayout
       leftChildren={
-        <Tabs defaultValue="layers" className="w-full">
-          <TabsList>
-            <TabsTrigger value="layers">Layers</TabsTrigger>
-            <TabsTrigger value="insert">Insert</TabsTrigger>
-          </TabsList>
-          <TabsContent value="layers">
-            <LayersPanel
-            elements={elements}
-            selectedElementId={selectedElementId}
-            onSelectElement={setSelectedElementId}
-            onDragElement={onDragElement}
-          /></TabsContent>
-          <TabsContent value="insert">
-            <InsertPanel onAddElement={onAddElement} />
-          </TabsContent>
-        </Tabs>
+        <div className="flex flex-col h-full overflow-hidden">
+          <div className="p-2">
+            <Text size="xs">Workspace</Text>
+          </div>
+          <Tabs defaultValue="layers" className="w-full gap-0 h-full overflow-hidden">
+            <TabsList className="w-full p-2" variant="simple">
+              <TabsTrigger value="layers">Layers</TabsTrigger>
+              <TabsTrigger value="insert">Insert</TabsTrigger>
+            </TabsList>
+            <TabsContent value="layers" className="h-full overflow-hidden flex flex-col">
+              <LayersPanel
+              elements={elements}
+              selectedElementId={selectedElementId}
+              onSelectElement={setSelectedElementId}
+              onDragElement={onDragElement}
+            /></TabsContent>
+            <TabsContent value="insert" className="h-full overflow-hidden flex flex-col">
+              <InsertPanel onAddElement={onAddElement} />
+            </TabsContent>
+          </Tabs>
+        </div>
       }
     >
       <DndContext

@@ -14,7 +14,7 @@ export default function CanvasLayout({
       <PanelGroup direction="horizontal">
         {/* Left Sidebar */}
         <Panel defaultSize={20} minSize={10} maxSize={40}>
-          <div className="h-full w-full bg-background border-r border-border">
+          <div className="h-full w-full bg-background border-r border-border overflow-hidden">
             {leftChildren}
           </div>
         </Panel>

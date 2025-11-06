@@ -81,7 +81,7 @@ export function useDndCanvas({
       setElements((prevElements) => {
         const updatePosition = (elements: FEElement[]): FEElement[] => {
           return elements.map((el) => {
-            if (el.id === activeId) {
+            if (el.id === activeId && el.type !== 'text') {
               return {
                 ...el,
                 canvasPosition: {
@@ -90,7 +90,7 @@ export function useDndCanvas({
                 },
               };
             }
-            return { ...el, children: updatePosition(el.children) };
+            return el;
           });
         };
 
@@ -194,7 +194,7 @@ export function useDndCanvas({
   const findElement = (elements: FEElement[], id: string): FEElement | null => {
     for (const el of elements) {
       if (el.id === id) return el;
-      if (el.children) {
+      if (el.type !== 'text' && el.children) {
         const found = findElement(el.children, id);
         if (found) return found;
       }
