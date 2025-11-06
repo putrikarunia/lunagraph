@@ -35,7 +35,7 @@ export function useHoverAndSelectionOverlay(
       const collectElements = (els: FEElement[]) => {
         els.forEach((el) => {
           allElements.push(el);
-          if (el.children.length > 0) {
+          if (el.type !== 'text' && el.children && el.children.length > 0) {
             collectElements(el.children);
           }
         });
@@ -61,7 +61,7 @@ export function useHoverAndSelectionOverlay(
     const collectElements = (els: FEElement[]) => {
       els.forEach((el) => {
         allElements.push(el);
-        if (el.children.length > 0) {
+        if (el.type !== 'text' && el.children && el.children.length > 0) {
           collectElements(el.children);
         }
       });
@@ -97,6 +97,7 @@ export function useHoverAndSelectionOverlay(
     };
 
     const selectedElement = findElement(elements, selectedElementId);
+    if (selectedElement?.type === 'text') return null
 
     return (
       <div
@@ -158,6 +159,8 @@ export function useHoverAndSelectionOverlay(
     };
 
     const hoveredElement = findElement(elements, hoverElementId);
+
+    if (hoveredElement?.type === 'text') return null;
 
     return (
       <div

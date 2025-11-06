@@ -58,7 +58,7 @@ export function Canvas({
       onClick={() => onSelectElement(null)}
       onMouseOver={() => onHoverElement(null)}
     >
-      {elements.map((el) =>
+      {elements.filter(el => el.type !== 'text').map((el) =>
         <div
           key={el.id}
           className="absolute"

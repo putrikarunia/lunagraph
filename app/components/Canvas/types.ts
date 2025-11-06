@@ -1,14 +1,21 @@
+export interface TextLeafNode {
+  id: string;
+  type: 'text';
+  tag: 'span';
+
+  // Common
+  styles?: React.CSSProperties;
+  text?: string;
+}
+
 export interface HtmlElement {
   id: string;
   type: 'html';
   tag: HTMLElement['tagName'];
 
-  // For HTML elements
-  content?: string;
-
   // Common
-  styles: React.CSSProperties;
-  children: FEElement[];
+  styles?: React.CSSProperties;
+  children?: FEElement[];
   canvasPosition?: { // if root in canvas, not inside another element
     x: number,
     y: number,
@@ -20,19 +27,19 @@ export interface ComponentElement {
   type: "component";
 
   // For component elements
-  componentName?: string;
+  componentName: string;
   props?: Record<string, any>;
 
   // Common
   styles?: React.CSSProperties;
-  children: FEElement[];
+  children?: FEElement[];
   canvasPosition?: { // if root in canvas, not inside another element
     x: number,
     y: number,
   }
 }
 
-export type FEElement = HtmlElement | ComponentElement;
+export type FEElement = HtmlElement | ComponentElement | TextLeafNode
 
 export type DraggingState = {
   id: string;

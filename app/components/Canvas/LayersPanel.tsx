@@ -124,7 +124,7 @@ export function LayersPanel({
   const renderLayerItem = (element: FEElement, depth: number = 0) => {
     const isSelected = selectedElementId === element.id;
     const isCollapsed = collapsedIds.has(element.id);
-    const hasChildren = element.children.length > 0;
+    const hasChildren = element.type !== 'text' && element.children && element.children?.length > 0;
     const isDragging = draggedId === element.id;
     const isDropTarget = dropTargetId === element.id;
 
@@ -192,7 +192,7 @@ export function LayersPanel({
         {/* Render children */}
         {hasChildren && !isCollapsed && (
           <div>
-            {element.children.map((child) => renderLayerItem(child, depth + 1))}
+            {element.children?.map((child) => renderLayerItem(child, depth + 1))}
           </div>
         )}
       </div>
@@ -203,7 +203,7 @@ export function LayersPanel({
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <Text size="sm" weight="semibold" variant="primary">
+        <Text size="xs" weight="semibold" variant="primary">
           Layers
         </Text>
       </div>
