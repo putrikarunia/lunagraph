@@ -9,6 +9,7 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+cli/node_modules
 
 # testing
 /coverage
@@ -19,6 +20,7 @@
 
 # production
 /build
+cli/dist
 
 # misc
 .DS_Store
@@ -39,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# lunagraph generated files
+.lunagraph/
