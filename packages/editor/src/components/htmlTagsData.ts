@@ -183,10 +183,7 @@ export const htmlTags: HTMLTagData[] = [
     tag: 'span',
     title: 'Span',
     description: 'Inline text container',
-    defaultStyles: {
-      fontSize: '16px',
-      color: '#374151',
-    },
+    defaultStyles: {},
     previewColor: '#9ca3af',
     category: 'text'
   },

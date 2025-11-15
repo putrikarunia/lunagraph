@@ -38,10 +38,6 @@ export function DraggableElement({
       style={style}
       {...listeners}
       {...attributes}
-      onDoubleClick={(e) => {
-        e.preventDefault()
-        console.log("DOUBLE CLICK")
-      }}
     >
       {children}
     </div>

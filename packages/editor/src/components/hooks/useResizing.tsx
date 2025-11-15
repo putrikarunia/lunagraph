@@ -1,10 +1,11 @@
-import { Dispatch, SetStateAction, useEffect } from "react";
+import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import { ResizingState, FEElement } from "../types";
 
 export function useResizing({
   resizing,
   setResizing,
   onResizeElement,
+  transform,
 }: {
   resizing: ResizingState | null;
   setResizing: Dispatch<SetStateAction<ResizingState | null>>;
@@ -13,7 +14,13 @@ export function useResizing({
     size: { width: number; height: number },
     position?: { x: number; y: number }
   ) => void;
+  transform?: { scale: number; positionX: number; positionY: number };
 }) {
+  // Store transform in a ref to avoid effect re-runs when it changes
+  const transformRef = useRef(transform);
+  useEffect(() => {
+    transformRef.current = transform;
+  }, [transform]);
   const handleResizeStart = (
     e: React.MouseEvent,
     id: string,
@@ -31,15 +38,19 @@ export function useResizing({
       height: 100,
     };
 
+    // getBoundingClientRect returns screen-space dimensions (already scaled)
+    // We need canvas-space dimensions, so divide by scale
+    const scale = transformRef.current?.scale || 1;
+
     // Convert width/height to numbers, using actual dimensions if "auto"
     const currentWidth =
       element.type === "html" && typeof element.styles?.width === "number"
         ? element.styles?.width
-        : rect.width;
+        : rect.width / scale;
     const currentHeight =
       element.type === "html" && typeof element.styles?.height === "number"
         ? element.styles?.height
-        : rect.height;
+        : rect.height / scale;
 
     setResizing({
       id,
@@ -56,8 +67,14 @@ export function useResizing({
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (resizing) {
-        const deltaX = e.clientX - resizing.startX;
-        const deltaY = e.clientY - resizing.startY;
+        // Get raw mouse deltas
+        const rawDeltaX = e.clientX - resizing.startX;
+        const rawDeltaY = e.clientY - resizing.startY;
+
+        // Transform mouse deltas to canvas space
+        const scale = transformRef.current?.scale || 1;
+        const deltaX = rawDeltaX / scale;
+        const deltaY = rawDeltaY / scale;
 
         let newWidth = resizing.startWidth;
         let newHeight = resizing.startHeight;
