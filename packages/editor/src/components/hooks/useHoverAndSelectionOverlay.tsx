@@ -9,7 +9,8 @@ export function useHoverAndSelectionOverlay(
     elements,
     selectedElementId,
     hoverElementId,
-    handleResizeStart
+    handleResizeStart,
+    transform
   } : {
     canvasRef: React.RefObject<HTMLDivElement | null>,
     elements: FEElement[],
@@ -20,7 +21,8 @@ export function useHoverAndSelectionOverlay(
       id: string,
       handle: string,
       element: FEElement
-    ) => void
+    ) => void,
+    transform?: { scale: number, positionX: number, positionY: number }
   }
 ) {
 
@@ -49,7 +51,23 @@ export function useHoverAndSelectionOverlay(
           newRects.set(element.id, domEl.getBoundingClientRect());
         }
       });
-      setElementRects(newRects);
+
+      // Only update if rects actually changed to prevent infinite loops
+      setElementRects(prev => {
+        if (prev.size !== newRects.size) return newRects;
+        let hasChanged = false;
+        newRects.forEach((rect, id) => {
+          const prevRect = prev.get(id);
+          if (!prevRect ||
+              prevRect.top !== rect.top ||
+              prevRect.left !== rect.left ||
+              prevRect.width !== rect.width ||
+              prevRect.height !== rect.height) {
+            hasChanged = true;
+          }
+        });
+        return hasChanged ? newRects : prev;
+      });
     };
 
     updateRects();
@@ -77,27 +95,45 @@ export function useHoverAndSelectionOverlay(
       window.removeEventListener('resize', updateRects);
       observer.disconnect();
     };
-  }, [elements, selectedElementId]);
+  }, [elements, selectedElementId, transform?.scale, transform?.positionX, transform?.positionY]);
 
   const renderSelectionOverlay = () => {
     if (!selectedElementId) return null;
 
+    const selectedElement = findElement(elements, selectedElementId);
+    if (selectedElement?.type === 'text') return null;
+
     const selectedRect = elementRects.get(selectedElementId);
     if (!selectedRect) return null;
 
-    const canvasEl = canvasRef?.current;
-    if (!canvasEl) return null;
+    // If we have transform, we're outside the TransformComponent
+    // Get position relative to the overlay container
+    let relativeRect;
+    if (transform) {
+      const overlayContainer = document.querySelector('[data-overlay-container]');
+      if (!overlayContainer) return null;
 
-    const canvasRect = canvasEl.getBoundingClientRect();
-    const relativeRect = {
-      left: selectedRect.left - canvasRect.left,
-      top: selectedRect.top - canvasRect.top,
-      width: selectedRect.width,
-      height: selectedRect.height,
-    };
+      const overlayRect = overlayContainer.getBoundingClientRect();
 
-    const selectedElement = findElement(elements, selectedElementId);
-    if (selectedElement?.type === 'text') return null
+      // Element's screen position - overlay container's screen position = relative position
+      relativeRect = {
+        left: selectedRect.left - overlayRect.left,
+        top: selectedRect.top - overlayRect.top,
+        width: selectedRect.width,
+        height: selectedRect.height,
+      };
+    } else {
+      const canvasEl = canvasRef?.current;
+      if (!canvasEl) return null;
+      const canvasRect = canvasEl.getBoundingClientRect();
+
+      relativeRect = {
+        left: selectedRect.left - canvasRect.left,
+        top: selectedRect.top - canvasRect.top,
+        width: selectedRect.width,
+        height: selectedRect.height,
+      };
+    }
 
     return (
       <div
@@ -144,23 +180,38 @@ export function useHoverAndSelectionOverlay(
     if (!hoverElementId) return null;
     if (hoverElementId === selectedElementId) return null;
 
+    const hoveredElement = findElement(elements, hoverElementId);
+    if (hoveredElement?.type === 'text') return null;
+
     const hoveredRect = elementRects.get(hoverElementId);
     if (!hoveredRect) return null;
 
-    const canvasEl = canvasRef?.current;
-    if (!canvasEl) return null;
+    // If we have transform, we're outside the TransformComponent
+    let relativeRect;
+    if (transform) {
+      const overlayContainer = document.querySelector('[data-overlay-container]');
+      if (!overlayContainer) return null;
 
-    const canvasRect = canvasEl.getBoundingClientRect();
-    const relativeRect = {
-      left: hoveredRect.left - canvasRect.left,
-      top: hoveredRect.top - canvasRect.top,
-      width: hoveredRect.width,
-      height: hoveredRect.height,
-    };
+      const overlayRect = overlayContainer.getBoundingClientRect();
 
-    const hoveredElement = findElement(elements, hoverElementId);
+      relativeRect = {
+        left: hoveredRect.left - overlayRect.left,
+        top: hoveredRect.top - overlayRect.top,
+        width: hoveredRect.width,
+        height: hoveredRect.height,
+      };
+    } else {
+      const canvasEl = canvasRef?.current;
+      if (!canvasEl) return null;
+      const canvasRect = canvasEl.getBoundingClientRect();
 
-    if (hoveredElement?.type === 'text') return null;
+      relativeRect = {
+        left: hoveredRect.left - canvasRect.left,
+        top: hoveredRect.top - canvasRect.top,
+        width: hoveredRect.width,
+        height: hoveredRect.height,
+      };
+    }
 
     return (
       <div

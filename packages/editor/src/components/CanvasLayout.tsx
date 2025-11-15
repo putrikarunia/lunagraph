@@ -6,10 +6,12 @@ import React, { PropsWithChildren } from "react";
 export default function CanvasLayout({
   leftChildren,
   rightChildren,
+  bottomChildren,
   children
 }: PropsWithChildren<{
   leftChildren: React.ReactNode;
   rightChildren?: React.ReactNode;
+  bottomChildren?: React.ReactNode;
 }>) {
   return (
     <div className="h-screen w-screen overflow-hidden bg-background">
@@ -37,8 +39,8 @@ export default function CanvasLayout({
 
             {/* Code Editor Area */}
             <Panel defaultSize={30} minSize={15} maxSize={70}>
-              <div className="h-full w-full bg-background border-t border-border">
-                {/* Empty code editor */}
+              <div className="h-full w-full bg-background">
+                {bottomChildren}
               </div>
             </Panel>
           </PanelGroup>

@@ -5,6 +5,7 @@ export async function scanCommand(options: { pattern?: string; output?: string }
   const cwd = process.cwd()
   const pattern = options.pattern || 'app/components/**/*.{ts,tsx}'
   const outputPath = options.output || path.join(cwd, '.lunagraph/ComponentIndex.json')
+  const componentsPath = path.join(path.dirname(outputPath), 'components.ts')
 
   console.log('🔍 Scanning for React components...')
   console.log(`   Directory: ${cwd}`)
@@ -25,11 +26,17 @@ export async function scanCommand(options: { pattern?: string; output?: string }
       })
     }
 
-    // Write to file
+    // Write both files
     await scanner.writeIndex(outputPath)
-    console.log(`\n💾 Component index saved to: ${outputPath}`)
-    console.log(`\n💡 Import it in your editor page:`)
-    console.log(`   import componentIndex from '@/.lunagraph/ComponentIndex.json'`)
+    await scanner.writeComponentsFile(componentsPath)
+
+    console.log(`\n💾 Generated files:`)
+    console.log(`   • ${outputPath}`)
+    console.log(`   • ${componentsPath}`)
+
+    console.log(`\n💡 Use in your editor page:`)
+    console.log(`   import * as lunagraph from './.lunagraph/components'`)
+    console.log(`   <LunagraphEditor {...lunagraph} />`)
 
   } catch (error) {
     console.error('❌ Error scanning components:', error)

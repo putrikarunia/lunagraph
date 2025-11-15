@@ -1,4 +1,3 @@
-import { PropsWithChildren } from "react"
 import { Button, Card, CardContent, CardFooter, CardHeader, CardTitle } from "./ui"
 
 export function GreetingCard({

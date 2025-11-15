@@ -9,11 +9,13 @@ export function useDndCanvas({
   setElements,
   onSelectElement,
   onDragElement,
+  canvasScale = 1,
 }: {
   elements: FEElement[];
   setElements: (elements: FEElement[] | ((prev: FEElement[]) => FEElement[])) => void;
   onSelectElement?: (id: string) => void;
   onDragElement?: (draggedId: string, targetId: string | null, position: "before" | "after" | "inside") => void;
+  canvasScale?: number;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -42,6 +44,12 @@ export function useDndCanvas({
     const activeId = active.id as string;
     const currentParentId = findParentId(elements, activeId);
 
+    // Convert screen-space delta to canvas-space delta
+    const canvasDelta = {
+      x: delta.x / canvasScale,
+      y: delta.y / canvasScale,
+    };
+
     // Decision tree:
     // 1. If fully inside another element (overId set) -> nest inside it
     // 2. If shouldDetach flag is true -> detach child to root canvas
@@ -66,8 +74,8 @@ export function useDndCanvas({
               {
                 ...removed,
                 canvasPosition: {
-                  x: draggedRect.left - canvasRect.left + delta.x,
-                  y: draggedRect.top - canvasRect.top + delta.y,
+                  x: draggedRect.left - canvasRect.left + canvasDelta.x,
+                  y: draggedRect.top - canvasRect.top + canvasDelta.y,
                 },
               },
             ];
@@ -85,8 +93,8 @@ export function useDndCanvas({
               return {
                 ...el,
                 canvasPosition: {
-                  x: (el.canvasPosition?.x || 0) + delta.x,
-                  y: (el.canvasPosition?.y || 0) + delta.y,
+                  x: (el.canvasPosition?.x || 0) + canvasDelta.x,
+                  y: (el.canvasPosition?.y || 0) + canvasDelta.y,
                 },
               };
             }

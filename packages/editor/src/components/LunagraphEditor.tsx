@@ -1,17 +1,20 @@
 "use client"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/Tabs"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DndContext, DragOverlay, useSensors, useSensor, PointerSensor } from "@dnd-kit/core"
 import { FEElement } from "./types"
 import CanvasLayout from "./CanvasLayout"
 import { Canvas } from "./Canvas"
 import { InsertPanel } from "./InsertPanel"
+import { AssetsPanel } from "./AssetsPanel"
 import { LayersPanel } from "./LayersPanel"
 import StylesPanel from "./StylesPanel"
 import PropsPanel from "./PropsPanel"
 import { useDndCanvas } from "./hooks/useDndCanvas"
 import { renderElement } from "./utils/renderElement"
 import { Text } from "./ui/Text"
+import { BottomBar, EditorTab } from "./BottomBar"
 
 export interface ComponentIndex {
   [componentName: string]: {
@@ -41,10 +44,98 @@ export const LunagraphEditor = ({
   components,
   componentIndex,
 }: LunagraphEditorProps) => {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const editingFile = searchParams.get('file')
+
   const [elements, setElements] = useState<FEElement[]>([])
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
   const [hoverElementId, setHoverElementId] = useState<string | null>(null)
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
+  const [canvasZoom, setCanvasZoom] = useState(1)
+
+  // Tabs state - always starts with Canvas 1
+  const [tabs, setTabs] = useState<EditorTab[]>([{
+    id: 'canvas-1',
+    name: 'Canvas 1',
+    type: 'canvas',
+    elements: []
+  }])
+  const [activeTabId, setActiveTabId] = useState('canvas-1')
+
+  const onEditComponent = (componentName: string, filePath: string) => {
+    // Check if tab already exists for this file
+    const existingTab = tabs.find(tab => tab.filePath === filePath)
+    if (existingTab) {
+      // Switch to existing tab
+      setActiveTabId(existingTab.id)
+      router.push(`?file=${encodeURIComponent(filePath)}`)
+    } else {
+      // Create new tab
+      const newTab: EditorTab = {
+        id: `file-${Date.now()}`,
+        name: componentName,
+        type: 'file',
+        filePath,
+        elements: [] // Will be loaded from dev server later
+      }
+      setTabs(prev => [...prev, newTab])
+      setActiveTabId(newTab.id)
+      router.push(`?file=${encodeURIComponent(filePath)}`)
+    }
+  }
+
+  const onCloseEdit = () => {
+    router.push('/editor')
+  }
+
+  const onTabChange = (tabId: string) => {
+    setActiveTabId(tabId)
+    const tab = tabs.find(t => t.id === tabId)
+    if (tab?.type === 'file' && tab.filePath) {
+      router.push(`?file=${encodeURIComponent(tab.filePath)}`)
+    } else {
+      router.push('/editor')
+    }
+  }
+
+  const onTabClose = (tabId: string) => {
+    const tabIndex = tabs.findIndex(t => t.id === tabId)
+    const newTabs = tabs.filter(t => t.id !== tabId)
+    setTabs(newTabs)
+
+    // If closing active tab, switch to adjacent tab
+    if (tabId === activeTabId) {
+      const newActiveTab = newTabs[Math.max(0, tabIndex - 1)]
+      setActiveTabId(newActiveTab.id)
+      if (newActiveTab.type === 'file' && newActiveTab.filePath) {
+        router.push(`?file=${encodeURIComponent(newActiveTab.filePath)}`)
+      } else {
+        router.push('/editor')
+      }
+    }
+  }
+
+  // Sync elements with active tab on tab change (only when tab switches)
+  useEffect(() => {
+    const activeTab = tabs.find(t => t.id === activeTabId)
+    if (activeTab) {
+      setElements(activeTab.elements)
+    }
+  }, [activeTabId]) // Only depend on activeTabId, not tabs
+
+  // Update active tab's elements when elements change
+  useEffect(() => {
+    setTabs(prev => {
+      const activeTab = prev.find(t => t.id === activeTabId)
+      // Only update if elements reference actually changed
+      if (activeTab && activeTab.elements === elements) return prev
+
+      return prev.map(tab =>
+        tab.id === activeTabId ? { ...tab, elements } : tab
+      )
+    })
+  }, [elements, activeTabId])
 
   // Configure sensors with activation constraint to allow double-click
   const sensors = useSensors(
@@ -137,13 +228,14 @@ export const LunagraphEditor = ({
     setElements,
     onSelectElement: setSelectedElementId,
     onDragElement,
+    canvasScale: canvasZoom,
   });
 
   const onAddElement = (element: FEElement) => {
     setElements(prev => [...prev, element])
   }
 
-  const onResizeElement = (
+  const onResizeElement = useCallback((
     elementId: string,
     size: { width: number; height: number },
     pos?: { x: number; y: number }
@@ -172,7 +264,7 @@ export const LunagraphEditor = ({
     };
 
     setElements(el => updateElement(el));
-  }
+  }, [])
 
   const onDeleteElement = (elementId: string) => {
     const removeElement = (elements: FEElement[]): FEElement[] => {
@@ -294,6 +386,7 @@ export const LunagraphEditor = ({
             <TabsList className="w-full p-2" variant="simple">
               <TabsTrigger value="layers">Layers</TabsTrigger>
               <TabsTrigger value="insert">Insert</TabsTrigger>
+              <TabsTrigger value="assets">Assets</TabsTrigger>
             </TabsList>
             <TabsContent value="layers" className="h-full overflow-hidden flex flex-col">
               <LayersPanel
@@ -306,7 +399,13 @@ export const LunagraphEditor = ({
             <TabsContent value="insert" className="h-full overflow-hidden flex flex-col">
               <InsertPanel
                 onAddElement={onAddElement}
+              />
+            </TabsContent>
+            <TabsContent value="assets" className="h-full overflow-hidden flex flex-col">
+              <AssetsPanel
+                onAddElement={onAddElement}
                 componentIndex={componentIndex}
+                onEditComponent={onEditComponent}
               />
             </TabsContent>
           </Tabs>
@@ -326,6 +425,14 @@ export const LunagraphEditor = ({
             onUpdateElementStyles={onUpdateElementStyles}
           />
         </div>
+      }
+      bottomChildren={
+        <BottomBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onTabChange={onTabChange}
+          onTabClose={onTabClose}
+        />
       }
     >
       <DndContext
@@ -350,13 +457,20 @@ export const LunagraphEditor = ({
           potentialParentId={overId}
           components={components}
           componentIndex={componentIndex}
+          editingFile={editingFile}
+          onCloseEdit={onCloseEdit}
+          onZoomChange={setCanvasZoom}
         />
         <DragOverlay dropAnimation={null}>
-          {activeElement && renderElement(activeElement, {
-            isDragPreview: true,
-            components,
-            componentIndex,
-          })}
+          {activeElement && (
+            <div style={{ transform: `scale(${canvasZoom})`, transformOrigin: 'top left' }}>
+              {renderElement(activeElement, {
+                isDragPreview: true,
+                components,
+                componentIndex,
+              })}
+            </div>
+          )}
         </DragOverlay>
       </DndContext>
     </CanvasLayout>
