@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @lunagraph/demo dev",
+    "dev": "pnpm --parallel --filter @lunagraph/editor --filter @lunagraph/demo dev",
+    "dev:demo": "pnpm --filter @lunagraph/demo dev",
+    "dev:server": "pnpm --filter @lunagraph/dev-server dev:demo",
+    "dev:all": "pnpm --parallel --filter @lunagraph/editor --filter @lunagraph/demo --filter @lunagraph/dev-server dev",
+    "scan": "pnpm --filter @lunagraph/demo scan",
     "build": "pnpm --recursive build",
     "build:cli": "pnpm --filter @lunagraph/cli build",
     "build:editor": "pnpm --filter @lunagraph/editor build",

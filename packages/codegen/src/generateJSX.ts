@@ -17,7 +17,7 @@ function generateElement(element: FEElement, indent: number): string {
 
   // Handle HTML elements
   if (element.type === 'html') {
-    const attrs = generateAttributes(element.styles, {})
+    const attrs = generateAttributes(element.styles, element.props || {})
     const opening = `${spaces}<${element.tag}${attrs}>`
 
     if (!element.children || element.children.length === 0) {

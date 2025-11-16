@@ -60,19 +60,71 @@
 - [x] Hot reload working with Turbopack + transpilePackages
 - [x] CLI accessible in demo app via `pnpm scan`
 
+### Dev Server & Snapshot Rendering
+- [x] Created `@lunagraph/dev-server` package with Express + WebSocket + Claude CLI integration
+- [x] File read endpoint extracts component return JSX, variables, initial values, and props
+- [x] File write endpoint with Claude CLI intelligent merge (preserves logic/state/hooks)
+- [x] WebSocket connection for live file watching
+- [x] Bottom bar Save button with loading/success/error states
+- [x] Variable initial value extraction from useState, const declarations, function definitions
+- [x] CLI bug fix: default exports now properly handled in ComponentIndex.json
+- [x] **Browser-side snapshot rendering** (COMPLETE)
+  - [x] Render component with mock values → React element (using Babel.transform + new Function)
+  - [x] Convert React element → static JSX string (react-element-to-jsx-string)
+  - [x] Parse static JSX → FEElements for canvas editing
+  - [x] Smart default mock value generation (title → "Title", isLoading → false, etc.)
+  - [x] Fixed rest parameters detection (`...props`)
+  - [x] Fixed JSX spread attributes detection (`<Card {...props}>`)
+  - [x] Fixed HTML element props parsing (className now preserved)
+- [x] **State Panel UI** (COMPLETE)
+  - [x] Right sidebar tabs: "State" | "Element" (Props/Styles)
+  - [x] State panel showing all variables used in component JSX
+  - [x] Type-appropriate inputs (string, number, boolean, JSON textarea for arrays/objects)
+  - [x] Null value editing with text input (parses JSON or string on blur)
+  - [x] Computed/derived variables marked with "computed" badge and disabled
+  - [x] Live canvas updates when mock values change
+  - [x] JSON editor validates on blur (not on keystroke) for better UX
+  - [x] "Edit JSON" toggle for complex types (arrays/objects)
+  - [x] Props tagged with visual "prop" badge
+- [x] **Auto-reload after save**
+  - [x] File automatically reloads after successful save
+  - [x] Snapshot re-renders with updated JSX from disk
+  - [x] mockValues reset to new initialValues after reload
+- [x] **Smart save flow with state context** (COMPLETE)
+  - [x] Dev server accepts `stateContext` (mock values used during editing)
+  - [x] Claude prompt explains snapshot rendering context to prevent replacing dynamic code
+  - [x] Instructs Claude to preserve all loops, conditionals, and JSX expressions
+  - [x] Instructs Claude to convert inline styles to Tailwind if project uses Tailwind
+  - [x] Bottom bar sends mockValues to dev server when saving
+  - [x] Using Sonnet model (Haiku failed to follow instructions)
+
+### VSCode-Style Tab Architecture
+- [x] Refactored tab architecture to eliminate circular updates
+  - Removed separate `elements` state
+  - Made `elements` derived from active tab (`const elements = activeTab.elements`)
+  - Smart `setElements` supports both value and updater functions
+- [x] Moved tabs to wrap entire canvas area (VSCode-style)
+  - Tabs at top showing file names
+  - Each tab renders own Canvas instance
+  - Sidebars stay constant, only center content switches
+- [x] Updated BottomBar to show single tab (no internal tabs)
+- [x] Tab close button with Phosphor icon
+- [x] URL params track active tab (`?file=components/GreetingCard.tsx`)
+- [x] Removed redundant "Editing ◆ ComponentName" header
+
+### Monorepo Dev Scripts
+- [x] `pnpm dev` - Runs editor watch + demo in parallel
+- [x] `pnpm dev:server` - Runs dev server with hot reload (tsx watch)
+- [x] `pnpm dev:all` - Runs everything in parallel
+- [x] `pnpm scan` - Scans components in demo app
+
 ## 🔄 In Progress
 
-Nothing currently in progress. Ready for next tasks.
+Nothing currently in progress.
 
 ## 📋 Pending Tasks
 
 ### High Priority
-- [ ] **Dev Server** - Backend for file read/write operations
-  - Create `@lunagraph/dev-server` package with Express + WebSocket
-  - File read endpoint (load .tsx file → parse to FEElement[])
-  - File write endpoint (save FEElement[] → generate JSX → write .tsx file)
-  - WebSocket connection for live updates
-  - Support multi-file editing workflow
 
 - [ ] **Error Boundaries** - Wrap canvas components in error boundaries to prevent crashes
   - Show clear error messages (e.g., "DropdownMenuItem needs parent DropdownMenu")
@@ -104,6 +156,149 @@ Nothing currently in progress. Ready for next tasks.
 None currently tracked.
 
 ## 📝 Notes
+
+### Recent Changes (2025-11-16 - Part 2: State Panel Implementation)
+
+**State Panel Complete:**
+- Created `StatePanel.tsx` component with intelligent variable editors:
+  - String inputs for text values
+  - Number inputs for numeric values
+  - Boolean checkboxes with true/false labels
+  - JSON textarea for arrays and objects with syntax validation
+  - Null value editing (accepts JSON or plain text, parses on blur)
+  - Function values shown as read-only `() => {...}`
+- Type-appropriate inputs automatically selected based on value type
+- "Edit JSON" toggle button for complex types (arrays/objects)
+- JSON validation on blur instead of keystroke (better UX for editing)
+- Computed/derived variables (like `totalProducts`, `inStockCount`) marked with gray "computed" badge
+- Computed variables have disabled inputs (read-only)
+- Props tagged with blue "prop" badge for visibility
+- Live canvas updates when mock values change (re-triggers snapshot rendering)
+
+**Right Sidebar Tabs:**
+- Tab 1: "State" - Shows all variables with editable mock values
+- Tab 2: "Element" - Shows Props/Styles for selected element
+- Clean tab UI matching left sidebar style
+
+**Auto-reload After Save:**
+- Added `onSaveSuccess` callback to BottomBar component
+- Automatically reloads file after successful save operation
+- Updates tab with new `returnJSX`, `variables`, `initialValues`, `props`
+- Resets `mockValues` to new initial values from file
+- Snapshot re-renders automatically with updated content
+- Fixes issue where saved changes weren't reflected in canvas
+
+**UX Improvements:**
+- JSON editor doesn't crash when typing incomplete JSON
+- Null values are now editable (type a value and it converts on blur)
+- Clear visual distinction between editable and computed values
+- Smooth workflow: edit state → see changes → save → auto-refresh
+
+### Recent Changes (2025-11-16 - Part 1: Snapshot Rendering & Tab Architecture)
+
+**Snapshot Rendering Complete:**
+- Implemented full browser-side snapshot rendering pipeline:
+  - JSX with expressions (`{title}`, `{...props}`) → Babel transforms to React.createElement
+  - Execute with mock values → React element tree
+  - react-element-to-jsx-string → static JSX string
+  - parseJSX → FEElements for canvas editing
+- Added smart default mock value generation:
+  - `title` → `"Title"` (capitalized string)
+  - `isLoading` → `false` (boolean pattern)
+  - `items` → `[]` (array pattern)
+  - `props` → `{}` (rest parameter)
+  - `children` → `null`
+- Fixed critical bugs in component extraction:
+  - Rest parameters detection: `function Comp({ title, ...props })` now captures `props`
+  - JSX spread attributes: `<Card {...props}>` now captured as variable
+  - Added `@babel/standalone` for JSX → JS transformation in browser
+- Fixed HTML element props not being preserved:
+  - Added `props` field to `HtmlElement` type
+  - Updated `parseJSX` to store props (className, id, etc.)
+  - Updated `generateJSX` to output props for HTML elements
+  - Now `<div className="...">` correctly shows in code editor
+
+**VSCode-Style Tab Architecture:**
+- Completely refactored tab system to eliminate circular updates:
+  - Removed separate `elements` state - now derived from active tab
+  - Each tab owns its elements, no syncing needed
+  - `setElements` is smart updater that modifies active tab
+- Restructured UI to match VSCode:
+  - Tabs moved to top of canvas area (not bottom bar)
+  - Each tab renders its own Canvas instance
+  - Sidebars (Layers/Assets, Props/Style) stay constant
+  - Only center content (canvas + code) switches per tab
+- Tab UI improvements:
+  - Bigger tabs with better padding (`px-4 py-2.5`)
+  - Phosphor X icon for close button (not nested button)
+  - Removed redundant "Editing ◆ ComponentName" header
+  - URL params automatically track active file
+
+**Monorepo Dev Scripts:**
+- Added `pnpm dev` - Runs editor watch + demo dev in parallel
+- Added `pnpm dev:server` - Runs dev server with tsx hot reload from apps/demo
+- Added `pnpm dev:all` - Runs everything (editor + demo + dev-server)
+- Added `pnpm scan` - Runs component scanner
+- Dev server now runs from correct directory (apps/demo) to find components
+- Hot reload working with tsx watch for dev server changes
+
+**Bug Fixes:**
+- Fixed nested `<button>` HTML error in tab close buttons
+- Fixed "Maximum update depth exceeded" from circular tab/elements sync
+- Fixed console.log causing Next.js async params error
+- Fixed dev server running from wrong directory (couldn't find components)
+
+### Recent Changes (2025-11-15)
+
+**Dev Server Package:**
+- Created `@lunagraph/dev-server` package for file read/write operations
+- Express HTTP server + WebSocket for live file watching
+- Claude CLI integration for intelligent code merging
+  - Hybrid approach: deterministic structure generation + Claude for preserving logic/state/hooks
+  - Detects Claude CLI availability, falls back to deterministic merge
+  - Prompts Claude with original file + new JSX + component imports
+- Security: Path validation to prevent directory traversal attacks
+
+**Component Return Extraction:**
+- Added `extractComponentReturn()` to codegen package
+- Extracts return statement JSX from component functions
+- Finds all variables used in JSX (state, props, computed values)
+- Identifies which variables are props vs internal
+- Extracts initial values from:
+  - `useState(initialValue)` → captures initial state
+  - `const variable = [...]` → captures arrays/objects/primitives
+  - `const handleClick = () => {}` → captures arrow functions
+  - `function handleClick() {}` → captures function declarations
+  - `const { data, isLoading } = useQuery()` → captures destructured values
+- Evaluates literal values (strings, numbers, booleans, arrays, objects)
+
+**CLI Bug Fix:**
+- Fixed default export handling in scanner
+- Before: ComponentIndex.json had `"default": { ... }` which broke imports
+- After: Uses filename as key: `"ProductList": { "exportName": "default" }`
+- Auto-generated components.ts now properly imports: `import ProductList from './ProductList'`
+
+**Bottom Bar Improvements:**
+- Added Save button with loading/success/error states
+- Integrated with dev server file write endpoint
+- Only shows Save button for file tabs (not free canvas)
+- Visual feedback: "Saving..." → "Saved!" → auto-hide
+
+**Snapshot Rendering Approach (In Progress):**
+- Goal: Render components with mock data to get fully-evaluated static JSX
+- Server sends: `returnJSX` (with {expressions}), `variables`, `initialValues`, `props`
+- Browser will:
+  1. Create snapshot function from returnJSX
+  2. Render with mock values from initialValues
+  3. Convert React element → static JSX (react-element-to-jsx-string)
+  4. Parse static JSX → FEElements for canvas
+- Allows editing different states (isLoading: true/false, products: [...], etc.)
+- Similar to Figma variants - toggle states to see/edit different views
+
+**Package Structure:**
+- Added `packages/dev-server/` to monorepo
+- Dependencies: express, ws, chokidar, chalk, cors
+- Uses @lunagraph/codegen for JSX parsing and generation
 
 ### Recent Changes (2025-11-14 - Part 2)
 
@@ -229,15 +424,16 @@ See AGENTS.md for detailed decision rationale. Key decisions:
 ```
 lunagraph/
 ├── packages/
-│   ├── cli/              @lunagraph/cli       - Component scanner
-│   ├── editor/           @lunagraph/editor    - React editor components
-│   └── codegen/          @lunagraph/codegen   - JSX ↔ FEElement conversion
+│   ├── cli/              @lunagraph/cli         - Component scanner
+│   ├── editor/           @lunagraph/editor      - React editor components
+│   ├── codegen/          @lunagraph/codegen     - JSX ↔ FEElement conversion
+│   └── dev-server/       @lunagraph/dev-server  - File operations backend
 ├── apps/
-│   └── demo/             @lunagraph/demo      - Test application
+│   └── demo/             @lunagraph/demo        - Test application
 ├── package.json          Root workspace
 └── pnpm-workspace.yaml   Workspace config
 ```
 
 ---
 
-**Last Updated:** 2025-11-14
+**Last Updated:** 2025-11-16

@@ -56,6 +56,7 @@ export function renderElement(
     content = createElement(
       element.tag ?? 'div',
       {
+        ...(element as any).props,  // Include props (e.g., className, id, etc.)
         style: element.styles,
         ...commonProps,
       },
