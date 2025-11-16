@@ -13,6 +13,7 @@ export interface HtmlElement {
   id: string;
   type: 'html';
   tag: string;
+  props?: Record<string, any>; // HTML attributes like className, id, etc.
   styles?: Record<string, any>; // React.CSSProperties
   children?: FEElement[];
 }

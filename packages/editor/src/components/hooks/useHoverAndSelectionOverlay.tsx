@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FEElement } from "../types";
 import { Text } from "../ui/Text";
 import { findElement } from "../util";
+import { cn } from "../../lib/utils";
 
 export function useHoverAndSelectionOverlay(
   {
@@ -135,9 +136,14 @@ export function useHoverAndSelectionOverlay(
       };
     }
 
+    const isComponent = selectedElement?.type === 'component'
+
     return (
       <div
-        className="absolute pointer-events-none outline-2 outline-selection"
+        className={cn(
+          "absolute pointer-events-none outline-2",
+          isComponent ? "outline-purple-500" : "outline-blue-500"
+        )}
         style={{
           left: relativeRect.left,
           top: relativeRect.top,
@@ -146,29 +152,41 @@ export function useHoverAndSelectionOverlay(
         }}
      >
        <div className="absolute -top-5 flex items-center">
-         <Text size="xs" variant="selection">
+         <Text size="xs" className={cn(isComponent ? "text-purple-500" : "text-blue-500")}>
            {selectedElement?.type === 'html' ? selectedElement?.tag : selectedElement?.componentName}
          </Text>
        </div>
-       {/* Resize handles - only for non-component elements */}
+       {/* Resize handles */}
 
         <div
-          className="absolute w-2 h-2 bg-blue-500 rounded-full cursor-nw-resize pointer-events-auto"
+          className={cn(
+            "absolute w-2 h-2 bg-white border cursor-nw-resize pointer-events-auto",
+            isComponent ? "border-purple-500" : "border-blue-500"
+          )}
           style={{ left: -4, top: -4 }}
           onMouseDown={(e) => selectedElement && handleResizeStart(e, selectedElementId, "nw", selectedElement)}
         />
         <div
-          className="absolute w-2 h-2 bg-blue-500 rounded-full cursor-ne-resize pointer-events-auto"
+          className={cn(
+            "absolute w-2 h-2 bg-white border cursor-ne-resize pointer-events-auto",
+            isComponent ? "border-purple-500" : "border-blue-500"
+          )}
           style={{ right: -4, top: -4 }}
           onMouseDown={(e) => selectedElement && handleResizeStart(e, selectedElementId, "ne", selectedElement)}
         />
         <div
-          className="absolute w-2 h-2 bg-blue-500 rounded-full cursor-sw-resize pointer-events-auto"
+          className={cn(
+            "absolute w-2 h-2 bg-white border cursor-sw-resize pointer-events-auto",
+            isComponent ? "border-purple-500" : "border-blue-500"
+          )}
           style={{ left: -4, bottom: -4 }}
           onMouseDown={(e) => selectedElement && handleResizeStart(e, selectedElementId, "sw", selectedElement)}
         />
         <div
-          className="absolute w-2 h-2 bg-blue-500 rounded-full cursor-se-resize pointer-events-auto"
+          className={cn(
+            "absolute w-2 h-2 bg-white border cursor-se-resize pointer-events-auto",
+            isComponent ? "border-purple-500" : "border-blue-500"
+          )}
           style={{ right: -4, bottom: -4 }}
           onMouseDown={(e) => selectedElement && handleResizeStart(e, selectedElementId, "se", selectedElement)}
         />
@@ -213,9 +231,14 @@ export function useHoverAndSelectionOverlay(
       };
     }
 
+    const isComponent = hoveredElement?.type === 'component'
+
     return (
       <div
-        className="absolute pointer-events-none outline-1 outline-selection"
+        className={cn(
+          "absolute pointer-events-none outline-1",
+          isComponent ? "outline-purple-500" : "outline-blue-500"
+        )}
         style={{
           left: relativeRect.left,
           top: relativeRect.top,
@@ -224,7 +247,7 @@ export function useHoverAndSelectionOverlay(
         }}
      >
        <div className="absolute -top-5 flex items-center">
-         <Text size="xs" variant="selection">
+         <Text size="xs" className={cn(isComponent ? "text-purple-500" : "text-blue-500")}>
            {hoveredElement?.type === 'html' ? hoveredElement?.tag : hoveredElement?.componentName}
          </Text>
        </div>

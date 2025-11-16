@@ -101,6 +101,7 @@ function parseJSXElement(node: t.JSXElement): FEElement | null {
       id: generateId(),
       type: 'html',
       tag: tagName.toLowerCase(),
+      props,
       styles,
       children: children.length > 0 ? children : undefined,
     }

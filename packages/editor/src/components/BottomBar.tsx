@@ -4,8 +4,9 @@ import { Button } from './ui/Button'
 import { Text } from './ui/Text'
 import CodeMirror from '@uiw/react-codemirror'
 import { javascript } from '@codemirror/lang-javascript'
-import { X } from '@phosphor-icons/react'
-import { cn } from '../lib/utils'
+import { FloppyDisk } from '@phosphor-icons/react'
+import { useDevServer } from '../hooks/useDevServer'
+import { useState } from 'react'
 
 export interface EditorTab {
   id: string
@@ -13,62 +14,81 @@ export interface EditorTab {
   type: 'canvas' | 'file'
   filePath?: string
   elements: FEElement[]
+  // For file tabs (snapshot rendering):
+  returnJSX?: string
+  variables?: string[]
+  initialValues?: Record<string, any>
+  props?: string[]
+  mockValues?: Record<string, any>
 }
 
 interface BottomBarProps {
-  tabs: EditorTab[]
-  activeTabId: string
-  onTabChange: (tabId: string) => void
-  onTabClose: (tabId: string) => void
+  tab: EditorTab
+  onSaveSuccess?: (filePath: string) => void
 }
 
-export function BottomBar({ tabs, activeTabId, onTabChange, onTabClose }: BottomBarProps) {
-  const activeTab = tabs.find(tab => tab.id === activeTabId)
-  const code = activeTab ? generateJSX(activeTab.elements) : ''
+export function BottomBar({ tab, onSaveSuccess }: BottomBarProps) {
+  const code = generateJSX(tab.elements)
+  const { saveFile, isSaving, error } = useDevServer()
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+  const handleSave = async () => {
+    if (tab.type !== 'file' || !tab.filePath) {
+      return
+    }
+
+    const result = await saveFile({
+      filePath: tab.filePath,
+      elements: tab.elements,
+      stateContext: tab.mockValues,  // Pass mock values to help Claude understand snapshot context
+    })
+
+    if (result.success) {
+      setSaveStatus('success')
+      setTimeout(() => setSaveStatus('idle'), 2000)
+
+      // Reload the file to get updated content
+      if (onSaveSuccess && tab.filePath) {
+        onSaveSuccess(tab.filePath)
+      }
+    } else {
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus('idle'), 3000)
+    }
+  }
+
+  const canSave = tab.type === 'file' && tab.filePath
 
   return (
     <div className="h-full flex flex-col border-t border-border bg-background">
-      {/* Tabs bar */}
-      <div className="flex items-center justify-between border-b border-border bg-muted/30">
-        <div className="flex items-center overflow-x-auto">
-          {tabs.map((tab) => {
-            const isActive = tab.id === activeTabId
-            return (
-              <div
-                key={tab.id}
-                className={cn(
-                  "group flex items-center gap-2 px-3 py-2",
-                  "border-r border-border cursor-pointer",
-                  "transition-colors hover:bg-accent/50",
-                  isActive
-                    ? "bg-background border-b-2 border-b-primary"
-                    : "bg-transparent"
-                )}
-                onClick={() => onTabChange(tab.id)}
-              >
-                <Text size="xs" weight={isActive ? "medium" : "regular"}>
-                  {tab.name}
-                </Text>
-                {tabs.length > 1 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onTabClose(tab.id)
-                    }}
-                    className={cn(
-                      "opacity-0 group-hover:opacity-100",
-                      "hover:bg-accent rounded p-0.5",
-                      "transition-opacity"
-                    )}
-                  >
-                    <X size={12} weight="bold" className="text-muted-foreground" />
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-        <div className="px-3 py-2">
+      {/* Action bar */}
+      <div className="flex items-center justify-between border-b border-border bg-muted/30 px-3 py-2">
+        <Text size="xs" className="text-muted-foreground">
+          {tab.type === 'file' ? tab.filePath : 'Free Canvas'}
+        </Text>
+        <div className="flex items-center gap-2">
+          {error && saveStatus === 'error' && (
+            <Text size="xs" className="text-red-600">
+              {error}
+            </Text>
+          )}
+          {saveStatus === 'success' && (
+            <Text size="xs" className="text-green-600">
+              Saved!
+            </Text>
+          )}
+          {canSave && (
+            <Button
+              variant="default"
+              size="xs"
+              onClick={handleSave}
+              disabled={isSaving}
+              LeftIcon={FloppyDisk}
+              leftIconProps={{weight: "fill"}}
+            >
+              {isSaving ? 'Saving...' : 'Save to code'}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="xs"

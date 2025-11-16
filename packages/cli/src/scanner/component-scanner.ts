@@ -384,6 +384,11 @@ export class ComponentScanner {
 
         // Use the declaration's actual file path, not the export file path
         const actualPath = declarationPath
+
+        // For default exports, use the file name as the component name
+        const componentKey = exportName === 'default'
+          ? path.basename(actualPath, path.extname(actualPath))
+          : exportName
         // Check function declarations
         if (Node.isFunctionDeclaration(declaration)) {
           if (this.isReactComponent(declaration)) {
@@ -393,8 +398,8 @@ export class ComponentScanner {
               props: this.extractProps(declaration),
             }
             // Only overwrite if new entry has props or existing doesn't exist
-            if (!this.componentIndex[exportName] || newEntry.props) {
-              this.componentIndex[exportName] = newEntry
+            if (!this.componentIndex[componentKey] || newEntry.props) {
+              this.componentIndex[componentKey] = newEntry
             }
           }
         }
@@ -437,8 +442,8 @@ export class ComponentScanner {
                 props: propsFromForwardRef,
               }
               // Only overwrite if new entry has props or existing doesn't exist
-              if (!this.componentIndex[exportName] || newEntry.props) {
-                this.componentIndex[exportName] = newEntry
+              if (!this.componentIndex[componentKey] || newEntry.props) {
+                this.componentIndex[componentKey] = newEntry
               }
             }
           }
@@ -451,8 +456,8 @@ export class ComponentScanner {
                 props: this.extractProps(initializer),
               }
               // Only overwrite if new entry has props or existing doesn't exist
-              if (!this.componentIndex[exportName] || newEntry.props) {
-                this.componentIndex[exportName] = newEntry
+              if (!this.componentIndex[componentKey] || newEntry.props) {
+                this.componentIndex[componentKey] = newEntry
               }
             }
           }
@@ -486,22 +491,30 @@ export class ComponentScanner {
       fs.mkdirSync(outputDir, { recursive: true })
     }
 
-    // Group components by their file path
-    const fileGroups = new Map<string, string[]>()
+    // Group components by their file path, separating default and named exports
+    const fileGroups = new Map<string, { defaults: string[]; named: string[] }>()
 
     for (const [componentName, info] of Object.entries(this.componentIndex)) {
       const filePath = info.path
       if (!fileGroups.has(filePath)) {
-        fileGroups.set(filePath, [])
+        fileGroups.set(filePath, { defaults: [], named: [] })
       }
-      fileGroups.get(filePath)!.push(info.exportName)
+
+      const group = fileGroups.get(filePath)!
+      if (info.exportName === 'default') {
+        // Extract component name from file path (e.g., "components/MyComponent.tsx" -> "MyComponent")
+        const fileName = path.basename(filePath, path.extname(filePath))
+        group.defaults.push(fileName)
+      } else {
+        group.named.push(info.exportName)
+      }
     }
 
     // Generate import statements
     const imports: string[] = []
     const componentNames: string[] = []
 
-    for (const [filePath, exportNames] of fileGroups) {
+    for (const [filePath, { defaults, named }] of fileGroups) {
       // Convert file path to import path (remove .tsx/.ts extension)
       const importPath = filePath.replace(/\.tsx?$/, '')
 
@@ -510,9 +523,22 @@ export class ComponentScanner {
       const relativeImport = path.relative(outputDir, absoluteComponentPath)
         .replace(/\\/g, '/') // Convert Windows paths to forward slashes
 
-      const importStatement = `import { ${exportNames.join(', ')} } from './${relativeImport}'`
-      imports.push(importStatement)
-      componentNames.push(...exportNames)
+      // Generate proper import statement based on export type
+      if (defaults.length > 0 && named.length === 0) {
+        // Only default export: import ComponentName from './path'
+        const defaultName = defaults[0]
+        imports.push(`import ${defaultName} from './${relativeImport}'`)
+        componentNames.push(defaultName)
+      } else if (defaults.length === 0 && named.length > 0) {
+        // Only named exports: import { Name1, Name2 } from './path'
+        imports.push(`import { ${named.join(', ')} } from './${relativeImport}'`)
+        componentNames.push(...named)
+      } else if (defaults.length > 0 && named.length > 0) {
+        // Both: import DefaultName, { Named1, Named2 } from './path'
+        const defaultName = defaults[0]
+        imports.push(`import ${defaultName}, { ${named.join(', ')} } from './${relativeImport}'`)
+        componentNames.push(defaultName, ...named)
+      }
     }
 
     // Generate the file content
