@@ -3,7 +3,7 @@
 import { FEElement } from "./types";
 import { Text } from "./ui/Text";
 import { Button } from "./ui/Button";
-import { CaretDownIcon, CaretRightIcon, CodeIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, CaretRightIcon, CodeIcon, TextT } from "@phosphor-icons/react";
 import { useState } from "react";
 import { cn } from "../lib/utils";
 
@@ -14,9 +14,10 @@ interface LayersPanelProps {
   onDragElement?: (draggedId: string, targetId: string | null, position: "before" | "after" | "inside") => void;
 }
 
-function DropIndicatorLine ({show, depth}: {show: boolean, depth: number}) {
-  return <div className={cn("h-0.5 bg-selection mx-3 my-px opacity-0 transition-all duration-100 rounded-full",
-    show && "opacity-100")} style={{ marginLeft: `${depth * 16 + 12}px` }} />
+function DropIndicatorLine ({show, depth, position}: {show: boolean, depth: number, position: 'before' | 'after'}) {
+  return <div className={cn("absolute left-0 right-0 h-0.5 bg-selection pointer-events-none opacity-0 transition-all duration-100 -translate-y-1/2",
+    position === 'before' ? 'top-0' : 'bottom-0',
+    show && "opacity-100 h-1")} style={{ marginLeft: `${depth * 16 + 12}px`, marginRight: '12px' }} />
 }
 
 export function LayersPanel({
@@ -49,7 +50,7 @@ export function LayersPanel({
     e.dataTransfer.setData("text/plain", id);
   };
 
-  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+  const handleDragOver = (e: React.DragEvent, targetId: string, hasChildren: boolean) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -59,13 +60,22 @@ export function LayersPanel({
     const y = e.clientY - rect.top;
     const height = rect.height;
 
-    // Determine drop position based on mouse position
-    if (y < height * 0.25) {
-      setDropPosition("before");
-    } else if (y > height * 0.75) {
-      setDropPosition("after");
+    // For elements without children, use 50/50 split for before/after
+    // For elements with children, use 33/33/33 split for before/inside/after
+    if (!hasChildren) {
+      if (y < height * 0.5) {
+        setDropPosition("before");
+      } else {
+        setDropPosition("after");
+      }
     } else {
-      setDropPosition("inside");
+      if (y < height * 0.33) {
+        setDropPosition("before");
+      } else if (y > height * 0.67) {
+        setDropPosition("after");
+      } else {
+        setDropPosition("inside");
+      }
     }
 
     setDropTargetId(targetId);
@@ -108,6 +118,9 @@ export function LayersPanel({
   };
 
   const getElementIcon = (element: FEElement) => {
+    if (element.type === 'text') {
+      return <TextT size={16} weight="regular" className="text-muted-foreground" />;
+    }
     return <CodeIcon size={16} weight="regular" className="text-muted-foreground" />;
   };
 
@@ -119,7 +132,7 @@ export function LayersPanel({
       return element.tag || "Element";
     }
     if (element.type === "text") {
-      return "Text";
+      return element.text || "Text";
     }
     return "Element";
   };
@@ -127,19 +140,19 @@ export function LayersPanel({
   const renderLayerItem = (element: FEElement, depth: number = 0) => {
     const isSelected = selectedElementId === element.id;
     const isCollapsed = collapsedIds.has(element.id);
-    const hasChildren = element.type !== 'text' && element.children && element.children?.length > 0;
+    const hasChildren = Boolean(element.type !== 'text' && element.children && element.children?.length > 0);
     const isDragging = draggedId === element.id;
     const isDropTarget = dropTargetId === element.id;
 
     return (
-      <div key={element.id}>
+      <div key={element.id} className="relative">
         {/* Drop indicator line - before */}
-        <DropIndicatorLine show={ isDropTarget && dropPosition === "before" } depth={depth} />
+        <DropIndicatorLine show={ isDropTarget && dropPosition === "before" } depth={depth} position="before" />
 
         <div
           draggable
           onDragStart={(e) => handleDragStart(e, element.id)}
-          onDragOver={(e) => handleDragOver(e, element.id)}
+          onDragOver={(e) => handleDragOver(e, element.id, hasChildren)}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, element.id)}
           onDragEnd={handleDragEnd}
@@ -147,7 +160,7 @@ export function LayersPanel({
             "flex items-center gap-1.5 px-3 py-1 cursor-pointer hover:bg-accent/50 transition-colors group relative border border-transparent border-solid",
             isSelected && "bg-accent",
             isDragging && "opacity-50",
-            isDropTarget && dropPosition === "inside" && "bg-selection/10 border-selection"
+            isDropTarget && dropPosition === "inside" && hasChildren && "bg-selection/10 border-selection"
           )}
           style={{ paddingLeft: `${depth * 16 + 12}px` }}
           onClick={() => onSelectElement(element.id)}
@@ -190,12 +203,12 @@ export function LayersPanel({
         </div>
 
         {/* Drop indicator line - after */}
-        <DropIndicatorLine show={ isDropTarget && dropPosition === "after" } depth={depth} />
+        <DropIndicatorLine show={ isDropTarget && dropPosition === "after" } depth={depth} position="after" />
 
         {/* Render children */}
-        {hasChildren && !isCollapsed && (
+        {hasChildren && !isCollapsed && element.type !== 'text' && (
           <div>
-            {element.children?.map((child) => renderLayerItem(child, depth + 1))}
+            {element.children?.map((child: FEElement) => renderLayerItem(child, depth + 1))}
           </div>
         )}
       </div>

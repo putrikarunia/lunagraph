@@ -35,6 +35,12 @@
 - [x] URL param tracking for editing state (?file=component.tsx)
 - [x] Canvas header showing "Editing 💎ComponentName" when editing files
 - [x] Double-click component in Assets panel to open in new tab
+- [x] **Figma-style selection behavior**
+  - Cmd/Ctrl+hover/click to select deepest (leaf) element
+  - Normal mode with nothing selected: select topmost (shallowest) element
+  - Normal mode with selection: smart navigation (select actual element at cursor)
+  - Double-click to drill into child element
+  - Text double-click opens edit mode
 
 ### Project Setup
 - [x] CLI tool structure (`/cli` directory)
@@ -156,6 +162,75 @@ Nothing currently in progress.
 None currently tracked.
 
 ## 📝 Notes
+
+### Recent Changes (2025-11-17: UX Improvements - Selection & Layers)
+
+**Figma-Style Selection Behavior:**
+
+*Problem Identified:*
+- Nested elements like `<span><Text /></span>` made outer elements hard to select
+- Click events always selected the deepest child due to `e.stopPropagation()`
+- Users couldn't easily navigate element hierarchy
+
+*Implementation:*
+- Added Cmd/Ctrl key tracking with proper cleanup on window blur
+- Implemented dynamic selection modes based on state and modifiers:
+  - **No Cmd + Nothing Selected**: "topmost" mode - selects shallowest parent element
+  - **No Cmd + Something Selected**: "deepest" mode - smart navigation, selects actual element at cursor
+  - **Cmd Pressed**: "deepest" mode - always selects leaf element (like text nodes)
+- Selection modes control `stopPropagation()` behavior:
+  - "deepest" mode: calls `stopPropagation()` to stop at first (deepest) element
+  - "topmost" mode: skips `stopPropagation()`, lets events bubble to parent
+- Added double-click drill-in functionality:
+  - Finds all elements at click position using `document.elementsFromPoint()`
+  - Selects next deeper child element in hierarchy
+  - Text elements open edit mode instead (preserves existing behavior)
+- Fixed hover clearing bug:
+  - Canvas background was clearing hover on all mouse events due to bubbling
+  - Added `e.target === e.currentTarget` check to only clear when hovering background itself
+
+*Files Changed:*
+- `packages/editor/src/components/utils/renderElement.tsx` - Added `selectionMode` prop, conditional `stopPropagation()`
+- `packages/editor/src/components/Canvas.tsx` - Selection mode logic, drill-in handler, fixed canvas background hover
+- `packages/editor/src/components/LunagraphEditor.tsx` - Cmd key tracking, `onDoubleClickDrillIn` implementation
+
+*User Experience Example:*
+```html
+<section><div><span>one</span><span>two two</span></div></section>
+```
+1. Hover "one" (no Cmd) → highlights `<section>` (topmost)
+2. Press Cmd, hover "one" → highlights `<span>one</span>` (leaf)
+3. Click → selects `<span>one</span>`
+4. Release Cmd, hover "two two" → highlights `<span>two two</span>` (smart mode)
+5. Hover between spans → highlights `<div>` (parent)
+6. Double-click section → drills into child at cursor position
+
+**Layers Panel Improvements:**
+- Added TextT icon from Phosphor for text elements (visual distinction)
+- Text layer items now display actual text content instead of generic "Text" label
+- Improved drag-and-drop indicator positioning:
+  - Absolute positioning instead of margin-based (more precise)
+  - Visual feedback now shows 1px thick colored line on hover
+  - Different drop zone logic for elements with/without children:
+    - Elements without children: 50/50 split (before/after)
+    - Elements with children: 33/33/33 split (before/inside/after)
+  - Drop "inside" only highlights when element has children
+- Better visual hierarchy with improved spacing and indicators
+
+**Default HTML Element Styles:**
+- Added `flexDirection: 'column'` to default styles for div, section, header, footer, nav, main
+- Prevents horizontal layout confusion when inserting multiple elements
+- More intuitive stacking behavior for new elements
+
+**Theme Colors:**
+- Added `--selection` color variable (purple: `oklch(0.488 0.243 264.376)`)
+- Used for drop indicators and selection highlights
+- Consistent across light and dark modes
+
+*Files Changed:*
+- `packages/editor/src/components/LayersPanel.tsx` - Improved DnD UX, text rendering
+- `packages/editor/src/components/htmlTagsData.ts` - Added flexDirection column
+- `packages/editor/src/styles.css` - Added selection color variable
 
 ### Recent Changes (2025-11-16 - Part 2: State Panel Implementation)
 
@@ -436,4 +511,4 @@ lunagraph/
 
 ---
 
-**Last Updated:** 2025-11-16
+**Last Updated:** 2025-11-17

@@ -4,7 +4,7 @@ import { FEElement, ResizingState } from "./types";
 import { useHoverAndSelectionOverlay } from "./hooks/useHoverAndSelectionOverlay";
 import { useResizing } from "./hooks/useResizing";
 import { usePotentialParentOverlay } from "./hooks/usePotentialParentOverlay";
-import { renderElement } from "./utils/renderElement";
+import { renderElement, SelectionMode } from "./utils/renderElement";
 import { ZoomControls } from "./ZoomControls";
 import { Text } from "./ui/Text";
 import { DiamondsFour, X } from "@phosphor-icons/react";
@@ -27,6 +27,8 @@ export function Canvas({
   editingFile = null,
   onCloseEdit,
   onZoomChange,
+  cmdPressed = false,
+  onDoubleClickDrillIn,
 }: {
   elements: FEElement[];
   selectedElementId: string | null;
@@ -49,6 +51,8 @@ export function Canvas({
   editingFile?: string | null;
   onCloseEdit?: () => void;
   onZoomChange?: (zoom: number) => void;
+  cmdPressed?: boolean;
+  onDoubleClickDrillIn?: (elementId: string, x: number, y: number) => void;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -56,6 +60,14 @@ export function Canvas({
   const [zoom, setZoom] = useState(1);
   const [transformState, setTransformState] = useState({ scale: 1, positionX: 0, positionY: 0 });
   const [spacePressed, setSpacePressed] = useState(false);
+
+  // Determine selection mode based on Cmd key and selection state
+  // - Cmd pressed: always select deepest (leaf) element
+  // - Nothing selected + No Cmd: select topmost (shallowest) element
+  // - Something selected + No Cmd: select deepest (smart navigation)
+  const selectionMode: SelectionMode = cmdPressed
+    ? 'deepest'
+    : (selectedElementId === null ? 'topmost' : 'deepest');
 
   const {handleResizeStart} = useResizing({
     resizing,
@@ -175,8 +187,18 @@ export function Canvas({
             className="relative"
             style={{ width: '4000px', height: '4000px' }}
             ref={canvasRef}
-            onClick={() => onSelectElement(null)}
-            onMouseOver={() => onHoverElement(null)}
+            onClick={(e) => {
+              // Only clear selection if clicking canvas background itself
+              if (e.target === e.currentTarget) {
+                onSelectElement(null);
+              }
+            }}
+            onMouseOver={(e) => {
+              // Only clear hover if hovering canvas background itself
+              if (e.target === e.currentTarget) {
+                onHoverElement(null);
+              }
+            }}
           >
             {elements.filter(el => el.type !== 'text').map((el) =>
               <div
@@ -190,12 +212,14 @@ export function Canvas({
               {renderElement(el, {
                 onSelectElement,
                 onHoverElement,
+                onDoubleClickElement: onDoubleClickDrillIn,
                 components,
                 componentIndex,
                 onEditText,
                 editingTextId,
                 onStartEditText,
                 onStopEditText,
+                selectionMode,
               })}
               </div>
             )}

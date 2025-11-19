@@ -56,6 +56,31 @@ export const LunagraphEditor = ({
   const [hoverElementId, setHoverElementId] = useState<string | null>(null)
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   const [canvasZoom, setCanvasZoom] = useState(1)
+  const [cmdPressed, setCmdPressed] = useState(false)
+
+  // Track Cmd/Ctrl key for deep selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) {
+        setCmdPressed(true)
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (!e.metaKey && !e.ctrlKey) {
+        setCmdPressed(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    // Handle blur (when user switches windows while holding Cmd)
+    const handleBlur = () => setCmdPressed(false)
+    window.addEventListener('blur', handleBlur)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [])
 
   // Tabs state - always starts with Canvas 1
   const [tabs, setTabs] = useState<EditorTab[]>([{
@@ -333,6 +358,30 @@ export const LunagraphEditor = ({
     setSelectedElementId(null); // Clear selection after delete
   }
 
+  const onDoubleClickDrillIn = (elementId: string, x: number, y: number) => {
+    // Find all elements at the click position
+    const elementsAtPoint = document.elementsFromPoint(x, y);
+    const elementIds: string[] = [];
+
+    for (const el of elementsAtPoint) {
+      const id = el.getAttribute('data-element-id');
+      if (id) {
+        elementIds.push(id);
+      }
+    }
+
+    // Find the element that was double-clicked
+    const clickedIndex = elementIds.indexOf(elementId);
+    if (clickedIndex === -1 || clickedIndex === 0) {
+      // Can't drill in further (already at deepest level or element not found)
+      return;
+    }
+
+    // Select the next deeper element (one level down in the hierarchy)
+    const childId = elementIds[clickedIndex - 1];
+    setSelectedElementId(childId);
+  }
+
   const onEditText = (elementId: string, text: string) => {
     const updateText = (elements: FEElement[]): FEElement[] => {
       return elements.map((el) => {
@@ -568,6 +617,7 @@ export const LunagraphEditor = ({
                 hoverElementId={hoverElementId}
                 onSelectElement={(id: string | null) => setSelectedElementId(id)}
                 onHoverElement={(id: string | null) => setHoverElementId(id)}
+                onDoubleClickDrillIn={onDoubleClickDrillIn}
                 onResizeElement={onResizeElement}
                 onEditText={onEditText}
                 editingTextId={editingTextId}
@@ -578,6 +628,7 @@ export const LunagraphEditor = ({
                 components={components}
                 componentIndex={componentIndex}
                 onZoomChange={setCanvasZoom}
+                cmdPressed={cmdPressed}
               />
               <DragOverlay dropAnimation={null}>
                 {activeElement && (

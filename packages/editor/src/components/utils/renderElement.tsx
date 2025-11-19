@@ -2,39 +2,61 @@ import { createElement, Fragment } from "react";
 import { FEElement } from "../types";
 import { DraggableElement } from "../DraggableElement";
 
+export type SelectionMode = 'topmost' | 'deepest';
+
 export function renderElement(
   element: FEElement,
   options: {
     isDragPreview?: boolean;
     onSelectElement?: (id: string) => void;
     onHoverElement?: (id: string | null) => void;
+    onDoubleClickElement?: (id: string, x: number, y: number) => void;
     components?: Record<string, React.ComponentType<any>>;
     componentIndex?: Record<string, any>;
     onEditText?: (id: string, text: string) => void;
     editingTextId?: string | null;
     onStartEditText?: (id: string) => void;
     onStopEditText?: () => void;
+    selectionMode?: SelectionMode;
   } = {}
 ): React.ReactNode {
-  const { isDragPreview = false } = options;
+  const { isDragPreview = false, selectionMode = 'deepest' } = options;
+
+  // In 'deepest' mode: stopPropagation to select deepest element
+  // In 'topmost' mode: don't stopPropagation, let event bubble to topmost parent
+  const shouldStopPropagation = selectionMode === 'deepest';
 
   const commonProps = {
     "data-element-id": element.id,
     onClick: options.onSelectElement
       ? (e: React.MouseEvent) => {
-          e.stopPropagation();
+          if (shouldStopPropagation && element.type !== "text") {
+            e.stopPropagation();
+          }
           options.onSelectElement!(element.id);
+        }
+      : undefined,
+    onDoubleClick: options.onDoubleClickElement
+      ? (e: React.MouseEvent) => {
+          if (shouldStopPropagation && element.type !== "text") {
+            e.stopPropagation();
+          }
+          options.onDoubleClickElement!(element.id, e.clientX, e.clientY);
         }
       : undefined,
     onMouseOver: options.onHoverElement
       ? (e: React.MouseEvent) => {
-          e.stopPropagation();
+          if (shouldStopPropagation && element.type !== "text") {
+            e.stopPropagation();
+          }
           options.onHoverElement!(element.id);
         }
       : undefined,
     onMouseLeave: options.onHoverElement
       ? (e: React.MouseEvent) => {
-          e.stopPropagation();
+          if (shouldStopPropagation && element.type !== "text") {
+            e.stopPropagation();
+          }
           options.onHoverElement!(null);
         }
       : undefined,
