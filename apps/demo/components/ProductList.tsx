@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { GreetingCard } from '@/components/GreetingCard'
 
 interface Product {
   id: number
@@ -35,7 +36,7 @@ export default function ProductList() {
   const inStockCount = products.filter(p => p.inStock).length
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto p-6 flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Catalog</h1>
         <div className="text-sm text-gray-600">
@@ -43,15 +44,11 @@ export default function ProductList() {
         </div>
       </div>
 
-      {isLoading && (
-        <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded">
-          Loading....
-        </div>
-      )}
+      {isLoading ? <div className="p-2 rounded-lg bg-blue-50 border border-blue-400">Loading...</div> : null}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {products.map((product) => (
-          <Card key={product.id} className={selectedId === product.id ? 'ring-2 ring-blue-500' : ''}>
+          <Card key={product.id} className="">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>{product.name}</span>

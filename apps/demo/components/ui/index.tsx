@@ -8,3 +8,4 @@ export {
   CardHeader,
   CardTitle
 } from './card'
+export { Text } from './text'

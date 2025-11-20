@@ -27,19 +27,32 @@ export class ComponentScanner {
   }
 
   /**
-   * Scan a glob pattern for components
+   * Scan a single glob pattern for components.
    */
   async scan(pattern: string = 'app/components/**/*.{ts,tsx}'): Promise<ComponentIndex> {
-    console.log(`Scanning: ${pattern}`)
+    return this.scanMultiple([pattern])
+  }
 
-    // Add source files
-    const sourceFiles = this.project.addSourceFilesAtPaths(pattern)
+  /**
+   * Scan multiple glob patterns for components.
+   */
+  async scanMultiple(patterns: string[]): Promise<ComponentIndex> {
+    let totalFiles = 0
 
-    console.log(`Found ${sourceFiles.length} files`)
+    // Scan each pattern
+    for (const pattern of patterns) {
+      console.log(`Scanning: ${pattern}`)
 
-    for (const sourceFile of sourceFiles) {
-      this.scanFile(sourceFile.getFilePath())
+      // Add source files
+      const sourceFiles = this.project.addSourceFilesAtPaths(pattern)
+      totalFiles += sourceFiles.length
+
+      for (const sourceFile of sourceFiles) {
+        this.scanFile(sourceFile.getFilePath())
+      }
     }
+
+    console.log(`Found ${totalFiles} files total`)
 
     return this.componentIndex
   }

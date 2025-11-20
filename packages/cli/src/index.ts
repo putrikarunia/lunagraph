@@ -13,7 +13,7 @@ program
 program
   .command('scan')
   .description('Scan for React components and generate index')
-  .option('-p, --pattern <pattern>', 'Glob pattern to scan', 'app/components/**/*.{ts,tsx}')
+  .option('-p, --pattern <pattern>', 'Glob pattern to scan (overrides defaults)')
   .option('-o, --output <path>', 'Output path for ComponentIndex.json', '.lunagraph/ComponentIndex.json')
   .action(scanCommand)
 

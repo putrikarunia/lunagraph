@@ -18,11 +18,16 @@
 
 ### Editor Features
 - [x] Visual canvas for component rendering
-- [x] InsertPanel for adding components to canvas (HTML elements only)
+- [x] InsertPanel for adding elements to canvas
+  - HTML elements (div, section, p, h1-h6, button, etc.)
+  - Form elements (input, textarea with proper React handling)
+  - Media elements (img, video, audio - void elements handled correctly)
+  - Text nodes (standalone text without HTML wrapper)
 - [x] AssetsPanel for browsing and adding scanned components (file tree structure)
 - [x] Default span child insertion for components with `children` prop
 - [x] Drag and drop (can drag into/out of parents)
 - [x] Text element editing (double-click to edit, input-based)
+- [x] Text nodes can exist at canvas root or inside elements
 - [x] Element resizing with handles
 - [x] Component wrapper fill behavior (components fill wrapper when explicitly sized)
 - [x] Right sidebar - Props editor (edit component props with live updates)
@@ -35,12 +40,17 @@
 - [x] URL param tracking for editing state (?file=component.tsx)
 - [x] Canvas header showing "Editing 💎ComponentName" when editing files
 - [x] Double-click component in Assets panel to open in new tab
+- [x] **Keyboard shortcuts**
+  - Delete/Backspace: Delete selected element
+  - Cmd+D / Ctrl+D: Duplicate selected element
+  - Option+Cmd+K / Alt+Ctrl+K: Create component from selected element
 - [x] **Figma-style selection behavior**
   - Cmd/Ctrl+hover/click to select deepest (leaf) element
   - Normal mode with nothing selected: select topmost (shallowest) element
   - Normal mode with selection: smart navigation (select actual element at cursor)
   - Double-click to drill into child element
   - Text double-click opens edit mode
+- [x] **Efficient ID generation with nanoid** (60% smaller than UUID, collision-resistant)
 
 ### Project Setup
 - [x] CLI tool structure (`/cli` directory)
@@ -124,13 +134,124 @@
 - [x] `pnpm dev:all` - Runs everything in parallel
 - [x] `pnpm scan` - Scans components in demo app
 
+### Component Extraction & Canvas Persistence
+- [x] Canvas data persistence to `.lunagraph/canvases/{canvasId}/canvas.json`
+- [x] Component storage in `.lunagraph/canvases/{canvasId}/components/`
+- [x] Canvas save/load/list API endpoints
+- [x] Component creation endpoint with auto-index update
+- [x] `CanvasData` and updated `ComponentIndex` types
+- [x] `useCanvasPersistence` hook for canvas operations
+- [x] Auto-save canvas on changes (1s debounce)
+- [x] CreateComponentModal UI with PascalCase validation
+- [x] Component extraction logic (selected element → code generation → file save)
+- [x] Replace extracted element with component reference
+- [x] Automatic ComponentIndex.json and components.ts update (manual JSON update, 200x faster than full scan)
+- [x] CLI scanner support for `.lunagraph/canvases/*/components/` pattern
+- [x] Keyboard shortcut ⌥⌘K for component extraction
+- [x] DiamondsFour button in Styles panel with tooltip
+
 ## 🔄 In Progress
 
-Nothing currently in progress.
+*No active tasks*
+
+## 🎨 Recent Session (2025-11-20)
+
+### Component Extraction Practice
+- Extracted `CardItem` component from `SectionCards` with typed props interface
+- Props: label, value, trend ("up" | "down"), trendValue, footerTitle, footerDescription
+- Demonstrates simple prop-based components that work well with Lunagraph
+
+### Fixed: Component Wrapper Layout Bug
+**Problem:** Components added to grid/flex layouts had widths shrinking to 0
+- Root cause: Extra wrapper div around components (line 209-224 in renderElement.tsx) used normal display
+- Grid saw wrapper div as grid item instead of actual component
+- Structure was: `DraggableElement (contents) → div (block) → Component`
+
+**Solution:** Added `display: contents` to component wrappers when no explicit styles
+```tsx
+const hasStyles = element.styles && Object.keys(element.styles).length > 0;
+const wrapperStyle = hasStyles
+  ? element.styles
+  : { display: 'contents' };
+```
+- Now components participate directly in parent layout (grid, flex, etc.)
+- Preserves wrapper when styles are explicitly set (for sizing/positioning)
+
+### Analysis: shadcn/ui Dashboard Limitations
+
+Analyzed complex dashboard example to understand Lunagraph's current capabilities vs gaps:
+
+**✅ Works Well:**
+- Simple prop-based components (`CardItem`, `Button`, etc.)
+- Static layouts with className/styles
+- HTML elements with Tailwind classes
+
+**❌ Not Supported Yet:**
+1. **Context Providers** (`SidebarProvider`, `TooltipProvider`)
+   - Parser doesn't track Context.Provider/Consumer patterns
+   - State flow across component boundaries not understood
+
+2. **Custom Hooks with State**
+   - `useIsMobile()` - useState + useEffect + window listeners
+   - `useSidebar()` - Context consumption
+   - `useReactTable()` - Complex third-party hook
+   - Parser doesn't track hook calls or state implications
+
+3. **Third-Party Library Components**
+   - **Recharts** (`<AreaChart>`, `<XAxis>`, etc.) - Not in scan patterns
+   - **@dnd-kit** (`DndContext`, `useSortable`) - Complex API
+   - **@tanstack/react-table** - State management library
+   - **Radix UI** primitives - Many components built on Radix
+   - **Badge component** - Uses `cva` (class-variance-authority) for variants
+
+4. **Complex Interactive State**
+   - Multiple interconnected useState calls
+   - Computed values derived from state
+   - State dependencies not tracked
+
+5. **Dynamic Data Transformations**
+   - `filteredData = chartData.filter(...)` - Computed values
+   - Parser extracts JSX but doesn't track computations
+
+6. **Event Handlers**
+   - onClick, onValueChange, onDragEnd handlers
+   - Parser sees props but doesn't understand behavior
+
+**Badge Component Specifically:**
+- **Why Not Supported:**
+  - Uses `cva` (class-variance-authority) for variant handling
+  - Variant prop dynamically controls which classes are applied
+  - Component scanner extracts props but doesn't understand variant system
+  - Would need special handling for variant-based components
+  - Pattern: `<Badge variant="outline">` where variant changes entire style set
+
+**What Would Be Needed:**
+1. Context tracking - Identify providers and state they expose
+2. Hook analysis - Understand useState, useEffect, useContext behavior
+3. Third-party component registry - Know about external libraries
+4. State dependency graph - Track how state affects rendering
+5. Event handler extraction - Understand interactive behavior
+6. Computed value tracking - Variables that change based on state
+7. Variant system support - Special handling for cva-based components
+
+*Files Changed:*
+- `packages/editor/src/components/utils/renderElement.tsx` - Component wrapper display: contents fix
 
 ## 📋 Pending Tasks
 
 ### High Priority
+
+- [ ] **Consider TanStack Query for API Requests**
+  - Current: Direct `fetch` calls in `useCanvasPersistence` and `useDevServer` hooks
+  - Benefits of TanStack Query:
+    - Automatic caching and request deduplication
+    - Background refetching and stale-while-revalidate
+    - Optimistic updates for better UX
+    - Better error/loading state management
+    - Request cancellation
+    - Retry logic with exponential backoff
+  - Migration: If API complexity grows (more mutations, cache invalidation needs), migrate to TanStack Query
+  - Keep simple for now, but revisit when patterns emerge
 
 - [ ] **Error Boundaries** - Wrap canvas components in error boundaries to prevent crashes
   - Show clear error messages (e.g., "DropdownMenuItem needs parent DropdownMenu")
@@ -162,6 +283,145 @@ Nothing currently in progress.
 None currently tracked.
 
 ## 📝 Notes
+
+### Recent Changes (2025-11-18: Text Nodes & Form Element Fixes)
+
+**Text Node Support:**
+- Added "Text" item to InsertPanel for creating standalone text nodes
+- Text nodes can now exist at canvas root level (not just inside elements)
+- Added `canvasPosition` field to `TextLeafNode` type
+- Text nodes fully functional: selectable, movable, editable, duplicatable
+- Text icon (TextT from Phosphor) shows at top of InsertPanel with gray preview
+
+**Void Elements Fix:**
+- Fixed React error when adding img, input, br, hr, and other void elements
+- Added void element detection in renderElement.tsx
+- Void elements list: img, input, br, hr, area, base, col, embed, link, meta, param, source, track, wbr
+- Void elements now render without children prop (React requirement)
+- Images and inputs can be added to canvas without errors
+
+**Textarea Special Handling:**
+- Fixed React error: "Use defaultValue or value props instead of setting children on textarea"
+- Textarea created with empty children array and placeholder prop
+- Textarea excluded from receiving slot placeholder in renderElement
+- Works correctly with React's controlled component pattern
+
+**LayersPanel Improvements:**
+- Fixed drag-and-drop for text nodes into empty elements
+- Changed from `hasChildren` to `canHaveChildren` logic
+- Empty h1, div, p, components can now accept "inside" drops
+- Text nodes can be dragged into any non-text element via Layers panel
+- Improved drop zone detection for better UX
+
+**Canvas Rendering:**
+- Removed filter that excluded text nodes from root-level rendering
+- Text nodes with canvasPosition now render on canvas like any other element
+- All root elements (html, component, text) treated equally
+
+*Files Changed:*
+- `packages/editor/src/components/types.ts` - Added canvasPosition to TextLeafNode, props to HtmlElement
+- `packages/editor/src/components/InsertPanel.tsx` - Text node insertion UI
+- `packages/editor/src/components/utils/renderElement.tsx` - Void element & textarea handling
+- `packages/editor/src/components/htmlTagsData.ts` - Textarea creation without children
+- `packages/editor/src/components/LayersPanel.tsx` - canHaveChildren logic for drop zones
+- `packages/editor/src/components/Canvas.tsx` - Render text nodes at root level
+
+### Recent Changes (2025-11-18: Component Extraction & Canvas Persistence)
+
+**Component Extraction Feature:**
+- Implemented full workflow for extracting canvas elements into reusable React components
+- Select any element on canvas → press ⌥⌘K or click DiamondsFour button → enter component name → creates component file
+- Selected element automatically replaced with component reference
+- Components stored in canvas-scoped directories: `.lunagraph/canvases/{canvasId}/components/`
+- Supports PascalCase component naming with validation
+
+**Canvas Persistence:**
+- Canvas data (elements, zoom, pan, metadata) saved to `.lunagraph/canvases/{canvasId}/canvas.json`
+- Auto-save on changes with 1-second debounce
+- Canvas ID derived from canvas name via slugification
+- Tracks createdAt and updatedAt timestamps
+- Bottom bar shows "Saved" indicator when persisted
+
+**Dev Server Enhancements:**
+- Added `/api/canvas/save` endpoint - Save canvas state with elements and viewport
+- Added `/api/canvas/:canvasId` endpoint - Load canvas by ID
+- Added `/api/canvas` endpoint - List all saved canvases
+- Added `/api/canvas/:canvasId/component` endpoint - Create component file and update index
+- Automatic ComponentIndex.json update on component creation (manual JSON manipulation)
+- Automatic components.ts regeneration with proper imports
+
+**Performance Optimization:**
+- Manual ComponentIndex.json update (~5ms) vs full scan (~1000ms) = 200x faster
+- Component available immediately after creation via hot module reload
+- No manual `pnpm scan` required
+
+**CLI Scanner Updates:**
+- Added `.lunagraph/canvases/*/components/*.{ts,tsx}` to default scan patterns
+- Fixed pattern parsing bug (comma in `{ts,tsx}` was breaking pattern splitting)
+- Changed from comma-separated string to array of patterns
+- CLI now properly scans canvas-created components
+
+**Types & Hooks:**
+- Added `CanvasData` interface in codegen package
+- Updated `EditorTab` type with `canvasId`, `canvasPath`, `canvasSaved` fields
+- Created `useCanvasPersistence` hook with save/load/createComponent methods
+- Component creation returns path for immediate usage
+
+**UI Components:**
+- CreateComponentModal with Dialog and Input components
+- PascalCase validation for component names
+- DiamondsFour button in Styles panel with tooltip showing "Create Component ⌥⌘K"
+- Two-part tooltip structure (primary text + keyboard shortcut)
+
+**Code Architecture:**
+- Component extraction uses existing `generateCompleteFile` from codegen
+- File writing handled by dev-server (not direct file system access)
+- WebSocket broadcast of `component-created` event for potential live updates
+- Clean separation: Editor UI → useCanvasPersistence → Dev Server API → File System
+
+*Files Changed:*
+- `packages/codegen/src/types.ts` - Added CanvasData, removed duplicate ComponentIndex
+- `packages/dev-server/src/index.ts` - Canvas endpoints, component creation with auto-index update
+- `packages/editor/src/hooks/useCanvasPersistence.ts` - New hook for canvas operations
+- `packages/editor/src/components/LunagraphEditor.tsx` - Auto-save, ⌥⌘K shortcut, onCreateComponent
+- `packages/editor/src/components/StylesPanel.tsx` - DiamondsFour button with tooltip
+- `packages/editor/src/components/CreateComponentModal.tsx` - New modal component
+- `packages/editor/src/components/BottomBar.tsx` - Updated EditorTab type
+- `packages/cli/src/commands/scan.ts` - Array of default patterns
+- `packages/cli/src/scanner/component-scanner.ts` - scanMultiple method
+- `packages/cli/src/index.ts` - Removed default pattern value
+
+### Recent Changes (2025-11-18: Duplication & ID Generation)
+
+**Keyboard Shortcut - Duplicate Element:**
+- Added Cmd+D (Mac) / Ctrl+D (Windows/Linux) to duplicate selected elements
+- Duplicates element with all children, styles, and props
+- Automatically offsets position by +20px x/y for visual clarity
+- Uses `structuredClone()` for deep cloning to avoid reference sharing
+- Fixed immutability issues - original element stays in place during duplication
+
+**ID Generation Improvements:**
+- Replaced `Date.now() + Math.random()` with `nanoid` package
+- Benefits:
+  - 60% smaller IDs (21 chars vs 36 for UUID)
+  - URL-safe by default
+  - Collision-resistant for typical use cases
+  - Faster generation
+  - Tiny bundle size (~100 bytes)
+- Created `packages/editor/src/components/utils/idUtils.ts` utility
+  - `generateId()` - generates unique 21-char nanoid
+  - `generatePrefixedId(prefix)` - generates IDs like `component-V1StGXR8_Z5jdHi6B-myT`
+- Updated ID generation in:
+  - `LunagraphEditor.tsx` - tab IDs & duplicate element IDs
+  - `AssetsPanel.tsx` - component element IDs
+  - `htmlTagsData.ts` - HTML element & text node IDs
+
+*Files Changed:*
+- `packages/editor/src/components/utils/idUtils.ts` - New utility file
+- `packages/editor/src/components/LunagraphEditor.tsx` - Duplicate logic, nanoid import
+- `packages/editor/src/components/AssetsPanel.tsx` - nanoid import
+- `packages/editor/src/components/htmlTagsData.ts` - nanoid import
+- `packages/editor/package.json` - Added nanoid dependency
 
 ### Recent Changes (2025-11-17: UX Improvements - Selection & Layers)
 
@@ -511,4 +771,4 @@ lunagraph/
 
 ---
 
-**Last Updated:** 2025-11-17
+**Last Updated:** 2025-11-20

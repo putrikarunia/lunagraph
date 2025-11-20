@@ -3,14 +3,18 @@
 import React, { useEffect, useState } from "react";
 import { FEElement } from "./types";
 import { findElement } from "./utils/treeUtils";
+import { Button } from "./ui/Button";
+import { DiamondsFourIcon } from "@phosphor-icons/react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/Tooltip";
 
 interface StylesPanelProps {
   selectedElementId: string | null;
   elements: FEElement[];
   onUpdateElementStyles: (elementId: string, styles: React.CSSProperties) => void;
+  onCreateComponent?: () => void;
 }
 
-export default function StylesPanel({ selectedElementId, elements, onUpdateElementStyles }: StylesPanelProps) {
+export default function StylesPanel({ selectedElementId, elements, onUpdateElementStyles, onCreateComponent }: StylesPanelProps) {
   const [cssText, setCssText] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -94,7 +98,28 @@ export default function StylesPanel({ selectedElementId, elements, onUpdateEleme
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="border-b border-border p-3">
-        <h3 className="text-sm font-semibold">Styles</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Styles</h3>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                LeftIcon={DiamondsFourIcon}
+                leftIconProps={{weight: "fill"}}
+                isChildText={false}
+                onClick={onCreateComponent}
+                disabled={!onCreateComponent}
+              />
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="flex items-center gap-2">
+                <span>Create Component</span>
+                <span className="opacity-60">⌥⌘K</span>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <p className="text-xs text-muted-foreground mt-1">{elementType}</p>
       </div>
 

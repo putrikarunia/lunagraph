@@ -64,23 +64,41 @@ export function useComponentSnapshot({
     }
 
     try {
-      // Step 1: Transform JSX to JavaScript using Babel
+      // Step 1: Find which components are used in the returnJSX
+      const usedComponents = new Set<string>()
+      const componentNamePattern = /<([A-Z][a-zA-Z0-9]*)/g
+      let match
+      while ((match = componentNamePattern.exec(returnJSX)) !== null) {
+        const compName = match[1]
+        if (components[compName]) {
+          usedComponents.add(compName)
+        }
+      }
+
+      // Step 2: Transform JSX to JavaScript using Babel
       const varNames = variables.join(', ')
-      const componentNames = Object.keys(components).join(', ')
+      const componentNames = Array.from(usedComponents).join(', ')
 
       // Create JSX code with function wrapper
       const jsxCode = `
         function SnapshotComponent(${varNames}) {
-          const { ${componentNames} } = components;
+          ${componentNames ? `const { ${componentNames} } = components;` : ''}
           return ${returnJSX};
         }
       `
+
+      // Debug: Log the generated code
+      console.log('[useComponentSnapshot] Used components:', Array.from(usedComponents))
+      console.log('[useComponentSnapshot] Generated JSX code:')
+      console.log(jsxCode)
 
       // Transform JSX to JavaScript
       const transformed = Babel.transform(jsxCode, {
         presets: ['react'],
         filename: 'snapshot.jsx',
       })
+
+      console.log('[useComponentSnapshot] Transformed successfully')
 
       // Import React for JSX
       const React = require('react')
@@ -114,13 +132,37 @@ export function useComponentSnapshot({
           return !['key', 'ref', '__self', '__source'].includes(prop)
         },
         displayName: (el: any) => {
-          // Preserve component names instead of expanding them
+          // Try to match element type back to original component name
+          for (const [name, comp] of Object.entries(components)) {
+            if (el.type === comp) {
+              return name
+            }
+          }
+
+          // Preserve component names for function components
           if (typeof el.type === 'function') {
             return el.type.displayName || el.type.name || 'Unknown'
           }
-          return el.type
+
+          // Handle forwardRef components (el.type is an object with $$typeof)
+          if (el.type && typeof el.type === 'object') {
+            // Check displayName on the type object FIRST (set via Component.displayName = 'Name')
+            if (el.type.displayName) {
+              return el.type.displayName
+            }
+            // ForwardRef components have a render property with the actual component
+            if (el.type.render && typeof el.type.render === 'function') {
+              return el.type.render.displayName || el.type.render.name || 'Unknown'
+            }
+          }
+
+          // Fallback to string conversion for HTML elements
+          return typeof el.type === 'string' ? el.type : 'Unknown'
         },
       })
+
+      console.log('[useComponentSnapshot] JSX string from reactElementToJSXString:')
+      console.log(jsxString)
 
       // Step 4: Parse JSX string to FEElements
       const elements = parseJSX(jsxString)
