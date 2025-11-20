@@ -3,17 +3,27 @@ import * as path from 'path'
 
 export async function scanCommand(options: { pattern?: string; output?: string }) {
   const cwd = process.cwd()
-  const pattern = options.pattern || 'app/components/**/*.{ts,tsx}'
+  const defaultPatterns = [
+    'app/components/**/*.{ts,tsx}',
+    'components/**/*.{ts,tsx}',
+    'src/components/**/*.{ts,tsx}',
+    '.lunagraph/canvases/*/components/*.{ts,tsx}',
+  ]
+
+  // Use provided pattern or defaults
+  const patterns = options.pattern ? [options.pattern] : defaultPatterns
+
   const outputPath = options.output || path.join(cwd, '.lunagraph/ComponentIndex.json')
   const componentsPath = path.join(path.dirname(outputPath), 'components.ts')
 
   console.log('🔍 Scanning for React components...')
   console.log(`   Directory: ${cwd}`)
-  console.log(`   Pattern: ${pattern}`)
+  console.log(`   Patterns:`)
+  patterns.forEach(p => console.log(`     • ${p.trim()}`))
 
   try {
     const scanner = new ComponentScanner(cwd)
-    const index = await scanner.scan(pattern)
+    const index = await scanner.scanMultiple(patterns)
 
     const componentCount = Object.keys(index).length
     console.log(`\n✅ Found ${componentCount} components`)

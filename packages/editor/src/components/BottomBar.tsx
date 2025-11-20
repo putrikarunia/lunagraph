@@ -12,9 +12,15 @@ export interface EditorTab {
   id: string
   name: string
   type: 'canvas' | 'file'
-  filePath?: string
   elements: FEElement[]
+
+  // For canvas tabs:
+  canvasId?: string              // Slug: "homepage-hero"
+  canvasPath?: string            // ".lunagraph/canvases/homepage-hero/"
+  canvasSaved?: boolean          // Track if canvas needs saving
+
   // For file tabs (snapshot rendering):
+  filePath?: string
   returnJSX?: string
   variables?: string[]
   initialValues?: Record<string, any>

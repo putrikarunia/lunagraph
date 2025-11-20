@@ -200,7 +200,7 @@ export function Canvas({
               }
             }}
           >
-            {elements.filter(el => el.type !== 'text').map((el) =>
+            {elements.map((el) =>
               <div
                 key={el.id}
                 className="absolute"

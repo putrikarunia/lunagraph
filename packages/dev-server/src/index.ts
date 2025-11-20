@@ -5,8 +5,8 @@ import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
 import cors from 'cors'
 import { watch } from 'chokidar'
-import { readFile, writeFile, access } from 'fs/promises'
-import { resolve, relative, join, basename } from 'path'
+import { readFile, writeFile, access, mkdir, readdir } from 'fs/promises'
+import { resolve, relative, join, basename, dirname } from 'path'
 import { constants } from 'fs'
 import chalk from 'chalk'
 import {
@@ -252,6 +252,258 @@ app.post('/api/files/*', async (req, res) => {
     })
   } catch (error) {
     console.error(chalk.red('Error writing file:'), error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+})
+
+// Canvas Management Endpoints
+
+// Helper to generate canvas slug from name
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+// Save canvas
+app.post('/api/canvas/save', async (req, res) => {
+  try {
+    const { id, name, elements, zoom, pan, metadata } = req.body as {
+      id?: string
+      name: string
+      elements: FEElement[]
+      zoom?: number
+      pan?: { x: number; y: number }
+      metadata?: { description?: string; tags?: string[] }
+    }
+
+    const canvasId = id || slugify(name)
+    const canvasDir = join(PROJECT_ROOT, '.lunagraph', 'canvases', canvasId)
+    const canvasFile = join(canvasDir, 'canvas.json')
+
+    // Create directories if they don't exist
+    await mkdir(canvasDir, { recursive: true })
+
+    // Check if canvas exists to determine createdAt
+    let createdAt = new Date().toISOString()
+    try {
+      const existing = await readFile(canvasFile, 'utf-8')
+      const existingData = JSON.parse(existing)
+      createdAt = existingData.createdAt || createdAt
+    } catch {
+      // New canvas, use current timestamp
+    }
+
+    const canvasData = {
+      id: canvasId,
+      name,
+      elements,
+      createdAt,
+      updatedAt: new Date().toISOString(),
+      zoom,
+      pan,
+      metadata
+    }
+
+    await writeFile(canvasFile, JSON.stringify(canvasData, null, 2), 'utf-8')
+
+    console.log(chalk.green('✓ Saved canvas:'), canvasId)
+
+    res.json({
+      success: true,
+      canvas: canvasData
+    })
+  } catch (error) {
+    console.error(chalk.red('Error saving canvas:'), error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+})
+
+// Load canvas
+app.get('/api/canvas/:canvasId', async (req, res) => {
+  try {
+    const { canvasId } = req.params
+    const canvasFile = join(PROJECT_ROOT, '.lunagraph', 'canvases', canvasId, 'canvas.json')
+
+    const content = await readFile(canvasFile, 'utf-8')
+    const canvasData = JSON.parse(content)
+
+    res.json({
+      success: true,
+      canvas: canvasData
+    })
+  } catch (error) {
+    console.error(chalk.red('Error loading canvas:'), error)
+    res.status(404).json({
+      success: false,
+      error: 'Canvas not found'
+    })
+  }
+})
+
+// List all canvases
+app.get('/api/canvas', async (req, res) => {
+  try {
+    const canvasesDir = join(PROJECT_ROOT, '.lunagraph', 'canvases')
+
+    // Check if directory exists
+    try {
+      await access(canvasesDir, constants.F_OK)
+    } catch {
+      // No canvases yet
+      return res.json({
+        success: true,
+        canvases: []
+      })
+    }
+
+    const entries = await readdir(canvasesDir, { withFileTypes: true })
+    const canvases = []
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        try {
+          const canvasFile = join(canvasesDir, entry.name, 'canvas.json')
+          const content = await readFile(canvasFile, 'utf-8')
+          const canvasData = JSON.parse(content)
+          canvases.push(canvasData)
+        } catch {
+          // Skip invalid canvas directories
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      canvases
+    })
+  } catch (error) {
+    console.error(chalk.red('Error listing canvases:'), error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+})
+
+// Create component in canvas
+app.post('/api/canvas/:canvasId/component', async (req, res) => {
+  try {
+    const { canvasId } = req.params
+    const { componentName, code } = req.body as {
+      componentName: string
+      code: string
+    }
+
+    if (!componentName || !code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing componentName or code'
+      })
+    }
+
+    const componentDir = join(PROJECT_ROOT, '.lunagraph', 'canvases', canvasId, 'components')
+    const componentFile = join(componentDir, `${componentName}.tsx`)
+    const componentPath = `.lunagraph/canvases/${canvasId}/components/${componentName}.tsx`
+
+    // Create directory if it doesn't exist
+    await mkdir(componentDir, { recursive: true })
+
+    // Write component file
+    await writeFile(componentFile, code, 'utf-8')
+
+    console.log(chalk.green('✓ Created component:'), `${canvasId}/components/${componentName}.tsx`)
+
+    // Update component index automatically
+    try {
+      const indexPath = join(PROJECT_ROOT, '.lunagraph', 'ComponentIndex.json')
+      const componentsPath = join(PROJECT_ROOT, '.lunagraph', 'components.ts')
+      const lunagraphDir = join(PROJECT_ROOT, '.lunagraph')
+
+      // Create .lunagraph directory if it doesn't exist
+      await mkdir(lunagraphDir, { recursive: true })
+
+      // Read existing index
+      let index: ComponentIndex = {}
+      try {
+        const content = await readFile(indexPath, 'utf-8')
+        index = JSON.parse(content)
+      } catch {
+        // Index doesn't exist yet, start fresh
+      }
+
+      // Add new component
+      index[componentName] = {
+        path: componentPath,
+        exportName: 'default' // Generated components always use default export
+      }
+
+      // Write updated ComponentIndex.json
+      await writeFile(indexPath, JSON.stringify(index, null, 2), 'utf-8')
+
+      // Regenerate components.ts
+      const imports: string[] = []
+      const componentNames: string[] = []
+
+      for (const [name, info] of Object.entries(index)) {
+        const importPath = info.path.replace(/\.tsx?$/, '')
+
+        if (info.exportName === 'default') {
+          imports.push(`import ${name} from '../${importPath}'`)
+        } else {
+          imports.push(`import { ${info.exportName} as ${name} } from '../${importPath}'`)
+        }
+        componentNames.push(name)
+      }
+
+      const componentsContent = `// Auto-generated by @lunagraph/dev-server - do not edit manually
+// This file is updated automatically when components are created
+
+${imports.join('\n')}
+import componentIndexData from './ComponentIndex.json'
+
+// Export all components
+export { ${componentNames.join(', ')} }
+
+// Export as components object
+export const components = {
+  ${componentNames.join(',\n  ')}
+}
+
+// Export component index
+export const componentIndex = componentIndexData
+`
+
+      await writeFile(componentsPath, componentsContent, 'utf-8')
+
+      console.log(chalk.green('✓ Updated component index'))
+    } catch (indexError) {
+      console.error(chalk.yellow('⚠ Failed to update component index:'), indexError)
+      // Continue anyway - component file was created successfully
+    }
+
+    // Broadcast to trigger hot reload
+    broadcast({
+      type: 'component-created',
+      canvasId,
+      componentName,
+      path: componentPath
+    })
+
+    res.json({
+      success: true,
+      componentName,
+      path: componentPath
+    })
+  } catch (error) {
+    console.error(chalk.red('Error creating component:'), error)
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : String(error)

@@ -3,7 +3,7 @@
 import { FEElement } from "./types";
 import { Text } from "./ui/Text";
 import { Button } from "./ui/Button";
-import { CaretDownIcon, CaretRightIcon, CodeIcon, TextT } from "@phosphor-icons/react";
+import { CaretDownIcon, CaretRightIcon, CodeIcon, DiamondIcon, TextT } from "@phosphor-icons/react";
 import { useState } from "react";
 import { cn } from "../lib/utils";
 
@@ -121,6 +121,9 @@ export function LayersPanel({
     if (element.type === 'text') {
       return <TextT size={16} weight="regular" className="text-muted-foreground" />;
     }
+    if (element.type === 'component') {
+      return <DiamondIcon size={16} weight="regular" className="text-purple-600" />;
+    }
     return <CodeIcon size={16} weight="regular" className="text-muted-foreground" />;
   };
 
@@ -140,7 +143,8 @@ export function LayersPanel({
   const renderLayerItem = (element: FEElement, depth: number = 0) => {
     const isSelected = selectedElementId === element.id;
     const isCollapsed = collapsedIds.has(element.id);
-    const hasChildren = Boolean(element.type !== 'text' && element.children && element.children?.length > 0);
+    const currentlyHasChildren = Boolean(element.type !== 'text' && element.children && element.children?.length > 0);
+    const canHaveChildren = element.type !== 'text'; // Can accept drops inside if not a text node
     const isDragging = draggedId === element.id;
     const isDropTarget = dropTargetId === element.id;
 
@@ -152,7 +156,7 @@ export function LayersPanel({
         <div
           draggable
           onDragStart={(e) => handleDragStart(e, element.id)}
-          onDragOver={(e) => handleDragOver(e, element.id, hasChildren)}
+          onDragOver={(e) => handleDragOver(e, element.id, canHaveChildren)}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, element.id)}
           onDragEnd={handleDragEnd}
@@ -160,13 +164,13 @@ export function LayersPanel({
             "flex items-center gap-1.5 px-3 py-1 cursor-pointer hover:bg-accent/50 transition-colors group relative border border-transparent border-solid",
             isSelected && "bg-accent",
             isDragging && "opacity-50",
-            isDropTarget && dropPosition === "inside" && hasChildren && "bg-selection/10 border-selection"
+            isDropTarget && dropPosition === "inside" && canHaveChildren && "bg-selection/10 border-selection"
           )}
           style={{ paddingLeft: `${depth * 16 + 12}px` }}
           onClick={() => onSelectElement(element.id)}
         >
           {/* Collapse/Expand button */}
-          {hasChildren ? (
+          {currentlyHasChildren ? (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -206,7 +210,7 @@ export function LayersPanel({
         <DropIndicatorLine show={ isDropTarget && dropPosition === "after" } depth={depth} position="after" />
 
         {/* Render children */}
-        {hasChildren && !isCollapsed && element.type !== 'text' && (
+        {currentlyHasChildren && !isCollapsed && element.type !== 'text' && (
           <div>
             {element.children?.map((child: FEElement) => renderLayerItem(child, depth + 1))}
           </div>

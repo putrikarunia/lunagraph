@@ -6,6 +6,10 @@ export interface TextLeafNode {
   // Common
   styles?: React.CSSProperties;
   text?: string;
+  canvasPosition?: { // if root in canvas, not inside another element
+    x: number,
+    y: number,
+  }
 }
 
 export interface HtmlElement {
@@ -14,6 +18,7 @@ export interface HtmlElement {
   tag: HTMLElement['tagName'];
 
   // Common
+  props?: Record<string, any>;
   styles?: React.CSSProperties;
   children?: FEElement[];
   canvasPosition?: { // if root in canvas, not inside another element

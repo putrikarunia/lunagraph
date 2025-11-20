@@ -10,6 +10,39 @@ export interface ComponentIndexEntry {
 export type ComponentIndex = Record<string, ComponentIndexEntry>
 
 /**
+ * Calculate relative import path from source file to target file
+ * Example: from '.lunagraph/canvases/canvas-1/components/Foo.tsx' to 'components/ui/text.tsx'
+ * Returns: '../../../../components/ui/text'
+ */
+function calculateRelativePath(fromFile: string, toFile: string): string {
+  // Remove filename from fromFile to get directory
+  const fromParts = fromFile.split('/').slice(0, -1)
+  const toParts = toFile.split('/')
+
+  // Find common prefix
+  let commonLength = 0
+  const minLength = Math.min(fromParts.length, toParts.length)
+  for (let i = 0; i < minLength; i++) {
+    if (fromParts[i] === toParts[i]) {
+      commonLength++
+    } else {
+      break
+    }
+  }
+
+  // Calculate how many levels to go up
+  const upLevels = fromParts.length - commonLength
+  const relativeParts = toParts.slice(commonLength)
+
+  // Build relative path
+  const upPath = '../'.repeat(upLevels)
+  const relPath = upPath + relativeParts.join('/')
+
+  // Ensure it starts with ./ or ../
+  return relPath.startsWith('.') ? relPath : './' + relPath
+}
+
+/**
  * Generate import statements from component dependencies
  *
  * @param componentNames - Set of component names used in the JSX
@@ -52,9 +85,15 @@ export function generateImports(
     // If multiple exports from same file, combine them
     const namedImports = Array.from(exportNames).sort().join(', ')
 
-    // Use relative path if target file is provided
-    // For now, we'll use @ alias (can be enhanced later)
-    const finalPath = importPath.startsWith('@/') ? importPath : `@/${importPath}`
+    // Calculate final import path
+    let finalPath: string
+    if (targetFilePath) {
+      // Calculate relative path from targetFilePath to importPath
+      finalPath = calculateRelativePath(targetFilePath, importPath)
+    } else {
+      // Fallback to @ alias
+      finalPath = importPath.startsWith('@/') ? importPath : `@/${importPath}`
+    }
 
     imports.push(`import { ${namedImports} } from '${finalPath}'`)
   }

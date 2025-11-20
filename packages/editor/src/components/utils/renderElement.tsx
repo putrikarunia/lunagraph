@@ -72,20 +72,40 @@ export function renderElement(
   }
 
   if (element.type === "html") {
+    // Void elements cannot have children
+    const voidElements = ['img', 'input', 'br', 'hr', 'area', 'base', 'col', 'embed', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+    const isVoidElement = voidElements.includes(element.tag);
+
+    // Textarea uses value/defaultValue, cannot have children
+    const isTextarea = element.tag === 'textarea';
+
     // Check if element has no children - render slot placeholder
     const hasChildren = element.children && element.children.length > 0;
 
-    content = createElement(
-      element.tag ?? 'div',
-      {
-        ...(element as any).props,  // Include props (e.g., className, id, etc.)
-        style: element.styles,
-        ...commonProps,
-      },
-      hasChildren
-        ? element.children?.map((child) => renderElement(child, { ...options }))
-        : renderSlot()
-    );
+    if (isVoidElement || isTextarea) {
+      // Void elements and textarea - no children allowed
+      content = createElement(
+        element.tag ?? 'div',
+        {
+          ...(element as any).props,
+          style: element.styles,
+          ...commonProps,
+        }
+      );
+    } else {
+      // Regular elements - can have children
+      content = createElement(
+        element.tag ?? 'div',
+        {
+          ...(element as any).props,
+          style: element.styles,
+          ...commonProps,
+        },
+        hasChildren
+          ? element.children?.map((child) => renderElement(child, { ...options }))
+          : renderSlot()
+      );
+    }
   } else if (element.type === "text") {
     // Text nodes - editable on double click
     const isEditing = options.editingTextId === element.id;
@@ -185,10 +205,17 @@ export function renderElement(
           }
         : element.props?.style;
 
+      // Use display:contents on wrapper if there are no explicit styles
+      // This allows components to participate directly in parent layout (grid, flex, etc.)
+      const hasStyles = element.styles && Object.keys(element.styles).length > 0;
+      const wrapperStyle = hasStyles
+        ? element.styles
+        : { display: 'contents' };
+
       content = createElement(
         'div',
         {
-          style: element.styles,
+          style: wrapperStyle,
           ...commonProps,
         },
         createElement(Component, {

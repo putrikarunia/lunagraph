@@ -1,4 +1,5 @@
 import { FEElement } from "./types"
+import { generatePrefixedId } from "./utils/idUtils"
 
 export interface HTMLTagData {
   tag: string
@@ -385,8 +386,26 @@ export const createElementFromTag = (tagData: HTMLTagData): FEElement => {
 
   const textContent = getTextContent()
 
+  // Special handling for textarea - use props instead of children
+  if (tagData.tag === 'textarea') {
+    return {
+      id: generatePrefixedId('html'),
+      type: "html",
+      tag: tagData.tag,
+      styles: tagData.defaultStyles,
+      props: {
+        placeholder: 'Enter text...'
+      },
+      canvasPosition: {
+        x: 100,
+        y: 100
+      },
+      children: []
+    }
+  }
+
   return {
-    id: `element-${Date.now()}`,
+    id: generatePrefixedId('html'),
     type: "html",
     tag: tagData.tag,
     styles: tagData.defaultStyles,
@@ -395,7 +414,7 @@ export const createElementFromTag = (tagData: HTMLTagData): FEElement => {
       y: 100
     },
     children: textContent ? [{
-      id: `text-${Date.now()}`,
+      id: generatePrefixedId('text'),
       type: "text",
       tag: "span",
       text: textContent

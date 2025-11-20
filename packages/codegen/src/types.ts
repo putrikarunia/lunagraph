@@ -28,3 +28,18 @@ export interface ComponentElement {
 }
 
 export type FEElement = HtmlElement | ComponentElement | TextLeafNode
+
+// Canvas persistence types
+export interface CanvasData {
+  id: string                    // Slug: "homepage-hero"
+  name: string                  // Display: "Homepage Hero"
+  elements: FEElement[]
+  createdAt: string
+  updatedAt: string
+  zoom?: number
+  pan?: { x: number; y: number }
+  metadata?: {
+    description?: string
+    tags?: string[]
+  }
+}

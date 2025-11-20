@@ -3,6 +3,7 @@ import { MagnifyingGlassIcon, FileTsIcon, CaretRightIcon, FolderIcon, DiamondsFo
 import { Text } from "./ui/Text"
 import { FEElement, ComponentElement } from "./types"
 import { ComponentIndex } from "./LunagraphEditor"
+import { generatePrefixedId } from "./utils/idUtils"
 
 interface AssetsPanelProps {
   onAddElement: (element: FEElement) => void
@@ -134,7 +135,7 @@ export const AssetsPanel = ({ onAddElement, onEditComponent, componentIndex = {}
     const defaultChildren: FEElement[] | undefined = hasChildrenProp ? [] : undefined
 
     return {
-      id: `component-${Date.now()}-${Math.random()}`,
+      id: generatePrefixedId('component'),
       type: 'component',
       componentName,
       props: defaultProps,

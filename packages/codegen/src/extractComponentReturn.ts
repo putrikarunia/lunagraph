@@ -14,6 +14,27 @@ export interface ExtractedComponent {
 }
 
 /**
+ * Check if a CallExpression is a React.forwardRef or forwardRef call
+ */
+function isForwardRefCall(node: any): boolean {
+  const callee = node.callee
+
+  // React.forwardRef
+  if (t.isMemberExpression(callee) &&
+      t.isIdentifier(callee.object, { name: 'React' }) &&
+      t.isIdentifier(callee.property, { name: 'forwardRef' })) {
+    return true
+  }
+
+  // forwardRef (direct import)
+  if (t.isIdentifier(callee, { name: 'forwardRef' })) {
+    return true
+  }
+
+  return false
+}
+
+/**
  * Extracts the return statement JSX and finds all variables used in it
  */
 export function extractComponentReturn(code: string): ExtractedComponent | null {
@@ -38,9 +59,25 @@ export function extractComponentReturn(code: string): ExtractedComponent | null 
       },
 
       // Handle arrow functions: const MyComponent = () => { ... }
+      // Also handles: const MyComponent = React.forwardRef(() => { ... })
       ArrowFunctionExpression(path: any) {
         if (!result) {
           result = extractFromFunction(path, variables, props, initialValues)
+        }
+      },
+
+      // Handle React.forwardRef: const MyComponent = React.forwardRef(...)
+      CallExpression(path: any) {
+        if (!result && isForwardRefCall(path.node)) {
+          console.log('[extractComponentReturn] Found forwardRef call')
+          // The callback is the first argument to forwardRef
+          const callbackPath = path.get('arguments.0')
+          console.log('[extractComponentReturn] Callback path exists:', !!callbackPath)
+          console.log('[extractComponentReturn] Callback is function:', callbackPath && (callbackPath.isArrowFunctionExpression() || callbackPath.isFunctionExpression()))
+          if (callbackPath && (callbackPath.isArrowFunctionExpression() || callbackPath.isFunctionExpression())) {
+            result = extractFromFunction(callbackPath, variables, props, initialValues)
+            console.log('[extractComponentReturn] Result from extractFromFunction:', !!result)
+          }
         }
       },
     })
@@ -67,15 +104,18 @@ function extractFromFunction(
   props: Set<string>,
   initialValues: Record<string, any>
 ): { returnJSX: string } | null {
+  console.log('[extractFromFunction] Called')
   // Extract props from function parameters
   extractPropsFromParams(path.node.params, props)
 
   // Find return statement
   const returnStatement = findReturnStatement(path)
+  console.log('[extractFromFunction] Found return statement:', !!returnStatement)
   let returnJSX: string | null = null
 
   if (returnStatement) {
     returnJSX = extractJSXFromReturn(returnStatement)
+    console.log('[extractFromFunction] Got returnJSX:', !!returnJSX)
     if (returnJSX) {
       findVariablesInJSX(returnStatement.argument, variables)
     }
@@ -99,9 +139,14 @@ function findReturnStatement(path: any): any {
 
   path.traverse({
     ReturnStatement(returnPath: any) {
-      // Get the first return statement we find
-      if (!returnStmt && (t.isJSXElement(returnPath.node.argument) || t.isJSXFragment(returnPath.node.argument))) {
-        returnStmt = returnPath.node
+      const arg = returnPath.node.argument
+      // Accept JSX or createElement calls
+      if (!returnStmt) {
+        if (t.isJSXElement(arg) || t.isJSXFragment(arg)) {
+          returnStmt = returnPath.node
+        } else if (t.isCallExpression(arg) && isCreateElementCall(arg)) {
+          returnStmt = returnPath.node
+        }
       }
     },
   })
@@ -110,7 +155,10 @@ function findReturnStatement(path: any): any {
 }
 
 function extractJSXFromReturn(returnStatement: any): string | null {
-  if (!returnStatement.argument) return null
+  if (!returnStatement.argument) {
+    console.log('[extractJSXFromReturn] No return argument')
+    return null
+  }
 
   // Handle parenthesized expressions: return (<div>...</div>)
   let jsxNode = returnStatement.argument
@@ -118,14 +166,152 @@ function extractJSXFromReturn(returnStatement: any): string | null {
     jsxNode = jsxNode.expression
   }
 
+  console.log('[extractJSXFromReturn] Return node type:', jsxNode.type)
+
   if (t.isJSXElement(jsxNode) || t.isJSXFragment(jsxNode)) {
+    console.log('[extractJSXFromReturn] Found JSX')
     return generate(jsxNode).code
   }
 
+  // Handle createElement calls: return createElement('div', props, children)
+  if (t.isCallExpression(jsxNode)) {
+    console.log('[extractJSXFromReturn] Is CallExpression')
+    const isCreateElem = isCreateElementCall(jsxNode)
+    console.log('[extractJSXFromReturn] Is createElement:', isCreateElem)
+    if (isCreateElem) {
+      const jsx = convertCreateElementToJSX(jsxNode)
+      console.log('[extractJSXFromReturn] Converted JSX:', jsx)
+      return jsx
+    }
+  }
+
+  console.log('[extractJSXFromReturn] No JSX found')
   return null
 }
 
+/**
+ * Check if a call expression is createElement or React.createElement
+ */
+function isCreateElementCall(node: any): boolean {
+  const callee = node.callee
+
+  // React.createElement
+  if (t.isMemberExpression(callee) &&
+      t.isIdentifier(callee.object, { name: 'React' }) &&
+      t.isIdentifier(callee.property, { name: 'createElement' })) {
+    return true
+  }
+
+  // createElement (direct import)
+  if (t.isIdentifier(callee, { name: 'createElement' })) {
+    return true
+  }
+
+  return false
+}
+
+/**
+ * Convert createElement(tag, props, children) to JSX string
+ */
+function convertCreateElementToJSX(node: any): string | null {
+  const args = node.arguments
+  if (args.length === 0) return null
+
+  // First argument is the tag (string literal or expression)
+  const tagArg = args[0]
+  let tag = 'div'
+
+  if (t.isStringLiteral(tagArg)) {
+    tag = tagArg.value
+  } else if (t.isIdentifier(tagArg)) {
+    // Check if it's a known component (starts with uppercase)
+    // If not, it's a variable like 'Comp' that we can't resolve - use default
+    const name = tagArg.name
+    if (/^[A-Z]/.test(name)) {
+      tag = name // Component name
+    } else {
+      // Variable like 'Comp' - we can't determine the value, use default
+      tag = 'div'
+    }
+  } else if (t.isLogicalExpression(tagArg) && tagArg.operator === '??') {
+    // Handle `as ?? 'span'` - use the fallback value (right side)
+    if (t.isStringLiteral(tagArg.right)) {
+      tag = tagArg.right.value
+    } else {
+      tag = 'div' // Default fallback
+    }
+  } else if (t.isConditionalExpression(tagArg)) {
+    // Handle `condition ? 'div' : 'span'` - use the consequent (first option)
+    if (t.isStringLiteral(tagArg.consequent)) {
+      tag = tagArg.consequent.value
+    } else if (t.isStringLiteral(tagArg.alternate)) {
+      tag = tagArg.alternate.value
+    } else {
+      tag = 'div'
+    }
+  } else {
+    // Other complex expressions - default to div
+    tag = 'div'
+  }
+
+  // Second argument is props (optional)
+  const propsArg = args[1]
+  let propsStr = ''
+  if (propsArg && !t.isNullLiteral(propsArg)) {
+    // For now, we'll skip props since they're complex to convert
+    // The component will use its default props
+    propsStr = ''
+  }
+
+  // Third argument is children (optional)
+  const childrenArg = args[2]
+  let childrenStr = ''
+  if (childrenArg) {
+    if (t.isStringLiteral(childrenArg)) {
+      childrenStr = childrenArg.value
+    } else if (t.isMemberExpression(childrenArg)) {
+      // props.children - treat as expression
+      childrenStr = `{${generate(childrenArg).code}}`
+    } else {
+      childrenStr = `{${generate(childrenArg).code}}`
+    }
+  }
+
+  // Generate JSX
+  if (childrenStr) {
+    return `<${tag}${propsStr}>${childrenStr}</${tag}>`
+  } else {
+    return `<${tag}${propsStr} />`
+  }
+}
+
 function findVariablesInJSX(node: any, variables: Set<string>) {
+  // Handle createElement calls - extract variables from arguments
+  if (t.isCallExpression(node) && isCreateElementCall(node)) {
+    // Third argument is children - extract variables from it
+    const childrenArg = node.arguments[2]
+    if (childrenArg && t.isExpression(childrenArg)) {
+      traverse(
+        t.file(t.program([t.expressionStatement(childrenArg)])),
+        {
+          Identifier(path: any) {
+            // Skip property names in member expressions (e.g., 'children' in props.children)
+            if (t.isMemberExpression(path.parent) && path.parent.property === path.node) {
+              return
+            }
+            const name = path.node.name
+            if (!['undefined', 'null', 'true', 'false', 'React', 'Fragment'].includes(name)) {
+              variables.add(name)
+            }
+          },
+        },
+        undefined,
+        {}
+      )
+    }
+    return
+  }
+
   // Traverse the JSX to find all identifiers
   traverse(
     t.file(t.program([t.expressionStatement(node)])),
